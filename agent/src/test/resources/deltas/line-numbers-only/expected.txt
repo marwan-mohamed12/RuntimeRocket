@@ -1,0 +1,2 @@
+contains=CONSTANT_POOL_ONLY
+shift=false
