@@ -1,0 +1,13 @@
+<idea-plugin>
+  <id>io.runtimerocket</id>
+  <name>RuntimeRocket</name>
+  <vendor>RuntimeRocket</vendor>
+  <description><![CDATA[
+    Reload compiled JVM changes into a running application without a restart.
+    Stub plugin descriptor; implementation lands in later pull requests.
+  ]]></description>
+  <depends>com.intellij.modules.platform</depends>
+  <depends>com.intellij.modules.java</depends>
+  <depends>com.intellij.modules.lang</depends>
+  <idea-version since-build="243" until-build="262.*"/>
+</idea-plugin>
