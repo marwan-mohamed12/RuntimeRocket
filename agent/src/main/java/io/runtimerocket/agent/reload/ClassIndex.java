@@ -129,8 +129,8 @@ public final class ClassIndex {
     }
 
     /**
-     * Loader to host a brand-new type: newest same-package DEFINE first, then any recorded
-     * application loader, then a same-package type from {@code getAllLoadedClasses}.
+     * Loader to host a brand-new type: newest same-package DEFINE first, then a same-package
+     * type from {@code getAllLoadedClasses}, then any recorded application loader.
      */
     public ClassLoader loaderForNewType(String binaryName) {
         if (binaryName == null) {
@@ -144,14 +144,14 @@ public final class ClassIndex {
                 return loader;
             }
         }
-        for (ClassLoader loader : applicationLoaders()) {
-            if (loader != null) {
-                return loader;
-            }
-        }
         for (Class<?> cls : inst.getAllLoadedClasses()) {
             ClassLoader loader = cls.getClassLoader();
             if (loader != null && !skipBinary(cls.getName()) && packageName(cls.getName()).equals(pkg)) {
+                return loader;
+            }
+        }
+        for (ClassLoader loader : applicationLoaders()) {
+            if (loader != null) {
                 return loader;
             }
         }
