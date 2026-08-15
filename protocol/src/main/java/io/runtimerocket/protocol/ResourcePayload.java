@@ -2,7 +2,7 @@ package io.runtimerocket.protocol;
 
 import java.util.Objects;
 
-/** v1 resource notification: path + hash only. No {@code bytesBase64}. */
+/** Path + hash only; the agent never carries resource bytes. */
 public final class ResourcePayload {
 
     public String classpathName;

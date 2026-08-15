@@ -4,7 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -37,15 +37,25 @@ class ProtocolSizeLimitTest {
     }
 
     @Test
-    void frameAtLimitIsAccepted() {
-        // Small enough that wrapping JSON still fits, large enough to exercise the check.
-        LogEvent log = new LogEvent();
-        log.seq = 1;
-        log.message = "ok";
-        String json = ProtocolCodec.encode(log);
-        assertTrue(json.getBytes(StandardCharsets.UTF_8).length < Protocol.MAX_FRAME_BYTES);
-        assertDoesNotThrow(() -> ProtocolCodec.decode(json));
-        assertDoesNotThrow(() -> ProtocolCodec.encode(log));
+    void frameAtExactLimitIsAccepted() {
+        LogEvent probe = new LogEvent();
+        probe.seq = 1;
+        probe.message = "";
+        int overhead = ProtocolCodec.encode(probe).getBytes(StandardCharsets.UTF_8).length;
+        int pad = Protocol.MAX_FRAME_BYTES - overhead;
+        assertTrue(pad > 0);
+
+        LogEvent atLimit = new LogEvent();
+        atLimit.seq = 1;
+        atLimit.message = "x".repeat(pad);
+        String json = ProtocolCodec.encode(atLimit);
+        assertEquals(Protocol.MAX_FRAME_BYTES, json.getBytes(StandardCharsets.UTF_8).length);
+        assertEquals(atLimit.message, ((LogEvent) ProtocolCodec.decode(json)).message);
+
+        LogEvent over = new LogEvent();
+        over.seq = 1;
+        over.message = "x".repeat(pad + 1);
+        assertThrows(ProtocolException.class, () -> ProtocolCodec.encode(over));
     }
 
     @Test
