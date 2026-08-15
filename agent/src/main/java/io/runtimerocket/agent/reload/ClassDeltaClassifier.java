@@ -267,7 +267,6 @@ public final class ClassDeltaClassifier {
         removed.removeAll(current);
         Set<Integer> added = new TreeSet<>(current);
         added.removeAll(previous);
-        // A name disappeared and a different number appeared: Foo$1 is now Foo$2.
         return !removed.isEmpty() && !added.isEmpty();
     }
 

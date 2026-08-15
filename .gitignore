@@ -8,7 +8,7 @@ out/
 .intellijPlatform/
 .kotlin/
 *.class
-# Checked-in classifier golden pairs (PR 3)
+# Classifier golden bytecode fixtures
 !agent/src/test/resources/deltas/**/*.class
 hs_err_pid*
 replay_pid*
