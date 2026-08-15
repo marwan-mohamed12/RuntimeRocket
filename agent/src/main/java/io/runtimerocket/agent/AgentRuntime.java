@@ -202,6 +202,7 @@ public final class AgentRuntime {
         if (server != null) {
             server.close();
         }
+        uninstallIndex();
         HandshakeFile.deleteQuietly(handshakePath);
         rollbackFields();
         started = false;
@@ -214,9 +215,16 @@ public final class AgentRuntime {
         if (watcher != null) {
             watcher.close();
         }
+        uninstallIndex();
         HandshakeFile.deleteQuietly(handshakePath);
         rollbackFields();
         started = false;
+    }
+
+    private void uninstallIndex() {
+        if (classIndex != null) {
+            classIndex.uninstall();
+        }
     }
 
     private void rollbackFields() {

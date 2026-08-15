@@ -186,7 +186,12 @@ public final class LoopbackServer implements AutoCloseable {
                     if (reload.session == null) {
                         reload.session = session;
                     }
-                    ReloadResult result = orchestrator.reload(reload);
+                    ReloadResult result;
+                    try {
+                        result = orchestrator.reload(reload);
+                    } catch (RuntimeException e) {
+                        result = failedReload(e);
+                    }
                     result.session = sessionOf(reload, session);
                     result.seq = reload.seq;
                     write(out, result);
@@ -222,6 +227,15 @@ public final class LoopbackServer implements AutoCloseable {
 
     private static String sessionOf(Frame frame, String fallback) {
         return frame.session != null ? frame.session : fallback;
+    }
+
+    private static ReloadResult failedReload(RuntimeException e) {
+        ReloadResult result = new ReloadResult();
+        result.status = ReloadResult.FAILED;
+        result.classes = List.of();
+        result.adapters = List.of();
+        result.message = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+        return result;
     }
 
     private boolean shouldKeepIdleConnection() {

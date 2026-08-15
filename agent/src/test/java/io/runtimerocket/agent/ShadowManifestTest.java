@@ -6,11 +6,14 @@ import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Enumeration;
 import java.util.jar.Attributes;
+import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
@@ -29,6 +32,11 @@ class ShadowManifestTest {
             assertEquals("true", attrs.getValue("Can-Retransform-Classes"));
             assertEquals("RuntimeRocket Agent", attrs.getValue("Implementation-Title"));
             assertNull(attrs.getValue("Can-Set-Native-Method-Prefix"));
+            Enumeration<JarEntry> entries = jarFile.entries();
+            while (entries.hasMoreElements()) {
+                String name = entries.nextElement().getName();
+                assertFalse(name.startsWith("net/bytebuddy/"), name);
+            }
         }
     }
 

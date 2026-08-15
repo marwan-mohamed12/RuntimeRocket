@@ -17,6 +17,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ResourceLock(value = "runtimerocket-agent", mode = ResourceAccessMode.READ_WRITE)
@@ -127,6 +128,77 @@ class AgentHotSwapTest {
             assertEquals(ReloadResult.RESTART_REQUIRED, result.status, result.message);
         }
         assertEquals(1, TestClasses.invokeValue(bodyType, instance));
+    }
+
+    @Test
+    void mixedAbortThenBodyOnlyRetryRedefines() throws Exception {
+        String token = AgentTestSupport.token();
+        AgentTestSupport.start(temp, token);
+
+        String bodyName = TestClasses.uniqueBinary("RetryBody");
+        String addName = TestClasses.uniqueBinary("RetryAdd");
+        byte[] bodyBefore = TestClasses.bodyClass(bodyName, 1);
+        byte[] bodyAfter = TestClasses.bodyClass(bodyName, 2);
+        byte[] addBefore = TestClasses.optionalExtraMethod(addName, false);
+        byte[] addAfter = TestClasses.optionalExtraMethod(addName, true);
+
+        Class<?> bodyType = TestClasses.define(getClass().getClassLoader(), bodyName, bodyBefore);
+        TestClasses.define(getClass().getClassLoader(), addName, addBefore);
+        Object instance = bodyType.getDeclaredConstructor().newInstance();
+
+        ReloadRequest mixed = new ReloadRequest();
+        mixed.byReference = false;
+        mixed.trigger = ReloadRequest.TRIGGER_MANUAL;
+        mixed.classes = List.of(
+                new ClassPayload(bodyName, null, null, TestClasses.b64(bodyAfter)),
+                new ClassPayload(addName, null, null, TestClasses.b64(addAfter)));
+
+        try (AgentClient client = new AgentClient(AgentRuntime.get().port())) {
+            client.handshake(token);
+            ReloadResult rejected = client.reload(mixed);
+            assertEquals(ReloadResult.RESTART_REQUIRED, rejected.status, rejected.message);
+            assertEquals(1, TestClasses.invokeValue(bodyType, instance));
+
+            ReloadResult retried = client.reload(inline(bodyName, bodyAfter));
+            assertEquals(ReloadResult.SUCCESS, retried.status, retried.message);
+            assertEquals(ClassOutcome.REDEFINED, retried.classes.get(0).status);
+        }
+        assertEquals(2, TestClasses.invokeValue(bodyType, instance));
+    }
+
+    @Test
+    void newTypeUsesIsolatedLoaderOfSamePackage() throws Exception {
+        String token = AgentTestSupport.token();
+        AgentTestSupport.start(temp, token);
+
+        String pkg = TestClasses.uniquePackage();
+        String existingName = pkg + ".Host";
+        String newName = pkg + ".Sibling";
+        TestClasses.IsolatedLoader isolated = new TestClasses.IsolatedLoader(getClass().getClassLoader());
+        Class<?> existing = isolated.define(existingName, TestClasses.bodyClass(existingName, 1));
+
+        try (AgentClient client = new AgentClient(AgentRuntime.get().port())) {
+            client.handshake(token);
+            ReloadResult result = client.reload(inline(newName, TestClasses.bodyClass(newName, 7)));
+            assertEquals(ReloadResult.SUCCESS, result.status, result.message);
+            assertEquals(ClassOutcome.DEFINED, result.classes.get(0).status);
+        }
+        Class<?> created = Class.forName(newName, false, isolated);
+        assertSame(existing.getClassLoader(), created.getClassLoader());
+        assertEquals(7, TestClasses.invokeValue(created, created.getDeclaredConstructor().newInstance()));
+    }
+
+    @Test
+    void corruptClassBytesReturnFailed() throws Exception {
+        String token = AgentTestSupport.token();
+        AgentTestSupport.start(temp, token);
+
+        try (AgentClient client = new AgentClient(AgentRuntime.get().port())) {
+            client.handshake(token);
+            ReloadResult result = client.reload(inline("demo.rr.Corrupt", "not-a-class-file".getBytes()));
+            assertEquals(ReloadResult.FAILED, result.status, result.message);
+            assertTrue(result.message != null && !result.message.isBlank());
+        }
     }
 
     @Test

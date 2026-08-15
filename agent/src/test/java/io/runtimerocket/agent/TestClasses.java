@@ -18,6 +18,10 @@ final class TestClasses {
         return "demo.rr." + prefix + NEXT.getAndIncrement();
     }
 
+    static String uniquePackage() {
+        return "demo.rr.p" + NEXT.getAndIncrement();
+    }
+
     static byte[] bodyClass(String binaryName, int value) {
         String internal = binaryName.replace('.', '/');
         ClassWriter writer = new ClassWriter(0);

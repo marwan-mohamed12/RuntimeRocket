@@ -26,6 +26,7 @@ public final class ClassIndex {
     private final ConcurrentHashMap<String, CopyOnWriteArrayList<WeakReference<Class<?>>>> byName =
             new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, byte[]> bytesByLoaderAndName = new ConcurrentHashMap<>();
+    private final CopyOnWriteArrayList<LoaderRecord> defineLoaders = new CopyOnWriteArrayList<>();
     private final IndexingTransformer transformer = new IndexingTransformer();
 
     public ClassIndex(Instrumentation inst) {
@@ -34,6 +35,10 @@ public final class ClassIndex {
 
     public void install() {
         inst.addTransformer(transformer, true);
+    }
+
+    public void uninstall() {
+        inst.removeTransformer(transformer);
     }
 
     public Optional<Class<?>> find(String binaryName) {
@@ -116,8 +121,51 @@ public final class ClassIndex {
         return readFromResource(cls);
     }
 
+    public void recordLoader(ClassLoader loader, String binaryName) {
+        if (loader == null || binaryName == null || skipBinary(binaryName)) {
+            return;
+        }
+        defineLoaders.add(new LoaderRecord(new WeakReference<>(loader), binaryName));
+    }
+
+    /**
+     * Loader to host a brand-new type: newest same-package DEFINE first, then any recorded
+     * application loader, then a same-package type from {@code getAllLoadedClasses}.
+     */
+    public ClassLoader loaderForNewType(String binaryName) {
+        if (binaryName == null) {
+            return null;
+        }
+        String pkg = packageName(binaryName);
+        for (int i = defineLoaders.size() - 1; i >= 0; i--) {
+            LoaderRecord rec = defineLoaders.get(i);
+            ClassLoader loader = rec.loader.get();
+            if (loader != null && packageName(rec.binaryName).equals(pkg)) {
+                return loader;
+            }
+        }
+        for (ClassLoader loader : applicationLoaders()) {
+            if (loader != null) {
+                return loader;
+            }
+        }
+        for (Class<?> cls : inst.getAllLoadedClasses()) {
+            ClassLoader loader = cls.getClassLoader();
+            if (loader != null && !skipBinary(cls.getName()) && packageName(cls.getName()).equals(pkg)) {
+                return loader;
+            }
+        }
+        return null;
+    }
+
     public List<ClassLoader> applicationLoaders() {
         Set<ClassLoader> loaders = new LinkedHashSet<>();
+        for (int i = defineLoaders.size() - 1; i >= 0; i--) {
+            ClassLoader loader = defineLoaders.get(i).loader.get();
+            if (loader != null) {
+                loaders.add(loader);
+            }
+        }
         for (CopyOnWriteArrayList<WeakReference<Class<?>>> refs : byName.values()) {
             for (WeakReference<Class<?>> ref : refs) {
                 Class<?> cls = ref.get();
@@ -127,6 +175,11 @@ public final class ClassIndex {
             }
         }
         return new ArrayList<>(loaders);
+    }
+
+    static String packageName(String binaryName) {
+        int dot = binaryName.lastIndexOf('.');
+        return dot < 0 ? "" : binaryName.substring(0, dot);
     }
 
     static boolean skipInternal(String internalName) {
@@ -185,10 +238,13 @@ public final class ClassIndex {
             }
             String binary = className.replace('/', '.');
             storeBytes(loader, binary, classfileBuffer.clone());
+            recordLoader(loader, binary);
             if (classBeingRedefined != null) {
                 recordClass(classBeingRedefined);
             }
             return null;
         }
     }
+
+    private record LoaderRecord(WeakReference<ClassLoader> loader, String binaryName) {}
 }

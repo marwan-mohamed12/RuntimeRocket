@@ -119,7 +119,6 @@ public final class ReloadOrchestrator {
             if (seen != null && now - seen < DEDUP_WINDOW_MS) {
                 skipped.add(new ClassOutcome(rc.binaryName, ClassOutcome.SKIPPED, List.of(), "duplicate"));
             } else {
-                recentKeys.put(key, now);
                 remaining.add(rc);
             }
         }
@@ -162,7 +161,7 @@ public final class ReloadOrchestrator {
         try {
             for (Prepared item : prepared) {
                 if (item.loaded.isEmpty()) {
-                    Class<?> cls = defineNewType(item.binaryName, item.bytes);
+                    Class<?> cls = defineNewType(item.binaryName, item.bytes, prepared);
                     index.recordClass(cls);
                     index.storeBytes(cls.getClassLoader(), item.binaryName, item.bytes);
                     item.definedClass = cls;
@@ -170,6 +169,7 @@ public final class ReloadOrchestrator {
                 }
             }
         } catch (Exception e) {
+            markApplied(defined);
             return failAfterDefine(t0, prepared, defined, e);
         }
 
@@ -185,9 +185,11 @@ public final class ReloadOrchestrator {
                 backend.apply(inst, batch);
             }
         } catch (Exception e) {
+            markApplied(defined);
             return failAfterDefine(t0, prepared, defined, e);
         }
 
+        markApplied(prepared);
         for (Prepared item : prepared) {
             if (item.definedClass != null) {
                 outcomes.add(
@@ -243,7 +245,7 @@ public final class ReloadOrchestrator {
                     delta.enumConstantsChanged,
                     delta.anonymousIndexShiftLikely);
         }
-        return new Prepared(rc.binaryName, rc.bytes, loaded, delta);
+        return new Prepared(rc.binaryName, rc.bytes, rc.sha256, loaded, delta);
     }
 
     private Prepared firstUnsupported(List<Prepared> prepared) {
@@ -256,19 +258,29 @@ public final class ReloadOrchestrator {
         return null;
     }
 
-    private Class<?> defineNewType(String binaryName, byte[] bytes) throws Exception {
-        ClassLoader loader = chooseLoader();
+    private Class<?> defineNewType(String binaryName, byte[] bytes, List<Prepared> batch) throws Exception {
+        ClassLoader loader = chooseLoader(binaryName, batch);
         Method define =
                 ClassLoader.class.getDeclaredMethod("defineClass", String.class, byte[].class, int.class, int.class);
         define.setAccessible(true);
         return (Class<?>) define.invoke(loader, binaryName, bytes, 0, bytes.length);
     }
 
-    private ClassLoader chooseLoader() {
-        for (ClassLoader loader : index.applicationLoaders()) {
-            if (loader != null) {
-                return loader;
+    private ClassLoader chooseLoader(String binaryName, List<Prepared> batch) {
+        String pkg = ClassIndex.packageName(binaryName);
+        if (batch != null) {
+            for (Prepared item : batch) {
+                for (Class<?> loaded : item.loaded) {
+                    ClassLoader loader = loaded.getClassLoader();
+                    if (loader != null && ClassIndex.packageName(loaded.getName()).equals(pkg)) {
+                        return loader;
+                    }
+                }
             }
+        }
+        ClassLoader indexed = index.loaderForNewType(binaryName);
+        if (indexed != null) {
+            return indexed;
         }
         ClassLoader ctx = Thread.currentThread().getContextClassLoader();
         if (ctx != null) {
@@ -276,6 +288,13 @@ public final class ReloadOrchestrator {
         }
         ClassLoader self = ReloadOrchestrator.class.getClassLoader();
         return self != null ? self : ClassLoader.getSystemClassLoader();
+    }
+
+    private void markApplied(List<Prepared> items) {
+        long now = System.currentTimeMillis();
+        for (Prepared item : items) {
+            recentKeys.put(new ClassKey(item.binaryName, item.sha256), now);
+        }
     }
 
     private ResolvedClasses resolveClasses(List<ClassPayload> payloads, boolean byReference) {
@@ -405,7 +424,6 @@ public final class ReloadOrchestrator {
     }
 
     private void finishTimer(long startedNanos) {
-        // duration is recorded on the result; keep the lock section measurable
         if (log != null && log.isDebugEnabled()) {
             long ms = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos);
             log.debug("reload lock held " + ms + "ms");
@@ -425,13 +443,15 @@ public final class ReloadOrchestrator {
     private static final class Prepared {
         final String binaryName;
         final byte[] bytes;
+        final String sha256;
         final List<Class<?>> loaded;
         final ClassDelta delta;
         Class<?> definedClass;
 
-        Prepared(String binaryName, byte[] bytes, List<Class<?>> loaded, ClassDelta delta) {
+        Prepared(String binaryName, byte[] bytes, String sha256, List<Class<?>> loaded, ClassDelta delta) {
             this.binaryName = binaryName;
             this.bytes = bytes;
+            this.sha256 = sha256;
             this.loaded = loaded;
             this.delta = delta;
         }
