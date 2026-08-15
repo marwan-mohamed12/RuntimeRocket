@@ -1,0 +1,2 @@
+contains=REMOVE_METHOD
+shift=false
