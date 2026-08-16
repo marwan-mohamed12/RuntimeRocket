@@ -39,8 +39,29 @@ class OutputSnapshot {
 
     fun currentFingerprints(): Map<Path, Fingerprint> = files.toMap()
 
-    fun diff(roots: List<OutputRoot>): Diff {
+    data class Peek(
+        val diff: Diff,
+        val fingerprints: Map<Path, Fingerprint>,
+    )
+
+    /** Compare disk to stored fingerprints without advancing the snapshot. */
+    fun peek(roots: List<OutputRoot>): Peek {
         val scanned = scan(roots)
+        return Peek(toDiff(scanned, roots), scanned)
+    }
+
+    fun commit(fingerprints: Map<Path, Fingerprint>) {
+        files.clear()
+        files.putAll(fingerprints)
+    }
+
+    fun diff(roots: List<OutputRoot>): Diff {
+        val peek = peek(roots)
+        commit(peek.fingerprints)
+        return peek.diff
+    }
+
+    private fun toDiff(scanned: Map<Path, Fingerprint>, roots: List<OutputRoot>): Diff {
         val changed = mutableListOf<ChangedFile>()
         for ((path, fingerprint) in scanned) {
             val previous = files[path]
@@ -58,8 +79,6 @@ class OutputSnapshot {
                 )
             }
         }
-        files.clear()
-        files.putAll(scanned)
         return Diff(
             classes = changed.filter { it.classFile },
             resources = changed.filter { !it.classFile },

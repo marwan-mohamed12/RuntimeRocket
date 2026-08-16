@@ -69,27 +69,36 @@ object RrHotSwapPolicy {
     }
 }
 
-internal class RrHotSwapVeto(private val project: Project) : HotSwapVetoableListener {
+internal class RrHotSwapVeto internal constructor(
+    private val project: Project?,
+    private val hasActiveSession: () -> Boolean,
+) : HotSwapVetoableListener {
+    constructor(project: Project) : this(project, { RrSessionManager.getInstance(project).hasActiveSession() })
+
+    constructor(hasActiveSession: () -> Boolean) : this(null, hasActiveSession)
+
     @Volatile
     private var registered = false
 
     fun activate() {
+        val p = project ?: return
         if (registered) {
             return
         }
-        HotSwapUI.getInstance(project).addListener(this)
+        HotSwapUI.getInstance(p).addListener(this)
         registered = true
     }
 
     fun deactivate() {
+        val p = project ?: return
         if (!registered) {
             return
         }
-        HotSwapUI.getInstance(project).removeListener(this)
+        HotSwapUI.getInstance(p).removeListener(this)
         registered = false
     }
 
     override fun shouldHotSwap(context: ProjectTaskContext): Boolean {
-        return RrHotSwapPolicy.shouldAllowStockHotSwap(RrSessionManager.getInstance(project).hasActiveSession())
+        return RrHotSwapPolicy.shouldAllowStockHotSwap(hasActiveSession())
     }
 }

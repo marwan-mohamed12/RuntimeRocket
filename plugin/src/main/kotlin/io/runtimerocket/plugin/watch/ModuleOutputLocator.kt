@@ -19,7 +19,7 @@ import java.nio.file.Path
  */
 object ModuleOutputLocator {
     val GRADLE: ProjectSystemId = ProjectSystemId("GRADLE")
-    val MAVEN: ProjectSystemId = ProjectSystemId("Maven")
+    val MAVEN: ProjectSystemId = ProjectSystemId("MAVEN")
 
     val GRADLE_CLASS_DIRS =
         listOf(
@@ -36,9 +36,48 @@ object ModuleOutputLocator {
     val MAVEN_CLASS_DIRS = listOf("target/classes")
     val MAVEN_TEST_CLASS_DIRS = listOf("target/test-classes")
 
-    fun paths(project: Project, context: CompileContext?, includeTests: Boolean): List<OutputRoot> {
+    data class LocatedOutputs(
+        val roots: List<OutputRoot>,
+        val missingModules: List<String>,
+    )
+
+    fun locate(project: Project, context: CompileContext?, includeTests: Boolean): LocatedOutputs {
         val modules = affectedModules(project, context)
-        return modules.flatMap { paths(it, context, includeTests) }
+        if (modules.isEmpty()) {
+            return LocatedOutputs(emptyList(), emptyList())
+        }
+        val roots = LinkedHashMap<Path, OutputRoot>()
+        val missing = mutableListOf<String>()
+        for (module in modules) {
+            val found = paths(module, context, includeTests)
+            if (found.isEmpty()) {
+                missing.add(module.name)
+            } else {
+                for (root in found) {
+                    roots.putIfAbsent(root.path, root)
+                }
+            }
+        }
+        return LocatedOutputs(roots.values.toList(), missing)
+    }
+
+    fun paths(project: Project, context: CompileContext?, includeTests: Boolean): List<OutputRoot> {
+        return locate(project, context, includeTests).roots
+    }
+
+    fun formatMissingOutput(located: LocatedOutputs): String? {
+        return formatMissingOutput(located.missingModules, noRoots = located.roots.isEmpty())
+    }
+
+    fun formatMissingOutput(moduleNames: List<String>, noRoots: Boolean = false): String? {
+        if (moduleNames.isNotEmpty()) {
+            return if (moduleNames.size == 1) {
+                "no compiler output found for module ${moduleNames[0]}"
+            } else {
+                "no compiler output found for modules ${moduleNames.joinToString(", ")}"
+            }
+        }
+        return if (noRoots) "no compiler output found" else null
     }
 
     fun paths(module: Module, context: CompileContext?, includeTests: Boolean): List<OutputRoot> {

@@ -76,6 +76,29 @@ class OutputSnapshotTest {
     }
 
     @Test
+    fun peekDoesNotCommitSoFailedSendCanResend() {
+        val classes = temp.resolve("retry")
+        Files.createDirectories(classes)
+        val classFile = classes.resolve("Retry.class")
+        Files.write(classFile, byteArrayOf(1, 2, 3))
+        val snapshot = OutputSnapshot()
+        val roots = listOf(OutputRoot(classes))
+        snapshot.baseline(roots)
+
+        Files.write(classFile, byteArrayOf(4, 5, 6))
+        val first = snapshot.peek(roots)
+        assertEquals(1, first.diff.classes.size)
+        assertEquals("Retry", first.diff.classes[0].binaryName)
+
+        val afterFailedSend = snapshot.peek(roots)
+        assertFalse(afterFailedSend.diff.isEmpty(), "fingerprints must stay put until send succeeds")
+        assertEquals(first.diff.classes[0].sha256, afterFailedSend.diff.classes[0].sha256)
+
+        snapshot.commit(first.fingerprints)
+        assertTrue(snapshot.peek(roots).diff.isEmpty())
+    }
+
+    @Test
     fun oversizedInlineSwitchesToByReference() {
         val classes = temp.resolve("big")
         Files.createDirectories(classes)

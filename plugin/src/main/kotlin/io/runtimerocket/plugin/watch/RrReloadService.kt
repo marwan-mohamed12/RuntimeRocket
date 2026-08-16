@@ -25,6 +25,7 @@ import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 @Service(Service.Level.PROJECT)
 class RrReloadService(private val project: Project) {
@@ -32,32 +33,40 @@ class RrReloadService(private val project: Project) {
     private val snapshotted = AtomicBoolean(false)
     private val forceAfterCompile = AtomicBoolean(false)
     private val inFlight = AtomicBoolean(false)
+    private val pending = AtomicBoolean(false)
+    private val pendingTrigger = AtomicReference<String?>(null)
     private val debounceLock = Any()
     private var debounceTask: ScheduledFuture<*>? = null
+    private var vfsIdleTask: ScheduledFuture<*>? = null
+    internal val compileCycle = RrCompileCycle()
     private val executor: ScheduledExecutorService =
         Executors.newSingleThreadScheduledExecutor { runnable ->
             Thread(runnable, "rr-reload").apply { isDaemon = true }
         }
 
     fun baseline(context: CompileContext? = null) {
-        val roots = currentRoots(context)
-        snapshot.baseline(roots)
+        val located = currentLocated(context)
+        snapshot.baseline(located.roots)
         snapshotted.set(true)
-        noteMissing(roots)
+        noteMissing(located)
     }
 
     fun onCompileFinished(aborted: Boolean, errors: Int, context: CompileContext) {
-        if (aborted || errors > 0) {
+        val failed = aborted || errors > 0
+        val shouldPush = compileCycle.onCompileFinished(failed)
+        cancelDebounce()
+        if (failed) {
+            forceAfterCompile.set(false)
             RrStatus.idle(project, "Compile failed — nothing reloaded")
             return
         }
         val force = forceAfterCompile.getAndSet(false)
         val settings = RrProjectSettings.getInstance(project)
         if (!settings.autoReloadOnSuccessfulCompile && !force) {
-            baseline(context)
             return
         }
         val trigger = if (force) ReloadRequest.TRIGGER_MANUAL else ReloadRequest.TRIGGER_COMPILE
+        compileCycle.markReloadStarted()
         executor.execute { pushDiff(context, trigger, startedAt = System.nanoTime()) }
     }
 
@@ -69,11 +78,20 @@ class RrReloadService(private val project: Project) {
         if (!settings.autoReloadOnSuccessfulCompile) {
             return
         }
+        if (!compileCycle.shouldScheduleVfs()) {
+            return
+        }
         synchronized(debounceLock) {
             debounceTask?.cancel(false)
             debounceTask =
                 executor.schedule(
-                    { pushDiff(context = null, trigger = ReloadRequest.TRIGGER_COMPILE, startedAt = System.nanoTime()) },
+                    {
+                        if (!compileCycle.shouldScheduleVfs()) {
+                            return@schedule
+                        }
+                        compileCycle.markReloadStarted()
+                        pushDiff(context = null, trigger = ReloadRequest.TRIGGER_COMPILE, startedAt = System.nanoTime())
+                    },
                     VFS_DEBOUNCE_MS,
                     TimeUnit.MILLISECONDS,
                 )
@@ -94,6 +112,7 @@ class RrReloadService(private val project: Project) {
             compiler.compile(scope, null)
             return
         }
+        compileCycle.markReloadStarted()
         executor.execute { pushDiff(context = null, trigger = ReloadRequest.TRIGGER_MANUAL, startedAt = System.nanoTime()) }
     }
 
@@ -102,28 +121,83 @@ class RrReloadService(private val project: Project) {
             BuildManagerListener.TOPIC,
             object : BuildManagerListener {
                 override fun buildStarted(project: Project, sessionId: UUID, isAutomake: Boolean) {
-                    if (project == this@RrReloadService.project) {
-                        RrStatus.compiling(project)
+                    if (project != this@RrReloadService.project) {
+                        return
+                    }
+                    compileCycle.onBuildStarted()
+                    cancelDebounce()
+                    RrStatus.compiling(project)
+                }
+
+                override fun buildFinished(project: Project, sessionId: UUID, isAutomake: Boolean) {
+                    if (project != this@RrReloadService.project) {
+                        return
+                    }
+                    when (compileCycle.onBuildFinished()) {
+                        RrCompileCycle.BuildFinish.RESTORE_IDLE -> restoreAfterBuild()
+                        RrCompileCycle.BuildFinish.ARM_VFS -> armGradleVfsWindow()
+                        RrCompileCycle.BuildFinish.NOTHING -> {}
                     }
                 }
             },
         )
     }
 
+    private fun armGradleVfsWindow() {
+        synchronized(debounceLock) {
+            vfsIdleTask?.cancel(false)
+            vfsIdleTask =
+                executor.schedule(
+                    {
+                        compileCycle.disarmVfs()
+                        if (!compileCycle.reloadStarted && !inFlight.get()) {
+                            restoreAfterBuild()
+                        }
+                    },
+                    VFS_ARM_MS,
+                    TimeUnit.MILLISECONDS,
+                )
+        }
+    }
+
+    private fun restoreAfterBuild() {
+        val phase = RrStatus.get(project).phase
+        if (phase == RrStatus.Phase.COMPILING) {
+            restoreIdle()
+        }
+    }
+
     private fun pushDiff(context: CompileContext?, trigger: String, startedAt: Long) {
         if (!inFlight.compareAndSet(false, true)) {
+            pending.set(true)
+            pendingTrigger.set(trigger)
             return
         }
         try {
-            val roots = currentRoots(context)
+            do {
+                pending.set(false)
+                val usedTrigger = pendingTrigger.getAndSet(null) ?: trigger
+                runPush(context, usedTrigger, startedAt)
+            } while (pending.getAndSet(false))
+        } finally {
+            inFlight.set(false)
+            if (pending.getAndSet(false)) {
+                val retryTrigger = pendingTrigger.getAndSet(null) ?: trigger
+                executor.execute { pushDiff(context, retryTrigger, System.nanoTime()) }
+            }
+        }
+    }
+
+    private fun runPush(context: CompileContext?, trigger: String, startedAt: Long) {
+        try {
+            val located = currentLocated(context)
             if (!snapshotted.get()) {
-                snapshot.baseline(roots)
+                snapshot.baseline(located.roots)
                 snapshotted.set(true)
             }
-            noteMissing(roots)
-            val diff = snapshot.diff(roots)
-            history().clearGutter(diff.classes.map { it.binaryName })
-            if (diff.isEmpty()) {
+            noteMissing(located)
+            val peek = snapshot.peek(located.roots)
+            if (peek.diff.isEmpty()) {
                 restoreIdle()
                 return
             }
@@ -132,16 +206,14 @@ class RrReloadService(private val project: Project) {
                 RrNotifier.notAttachedCompile(project)
                 return
             }
-            val request = ReloadRequestFactory.fromDiff(diff, trigger)
-            send(request, diff, startedAt)
+            val request = ReloadRequestFactory.fromDiff(peek.diff, trigger)
+            send(request, peek, startedAt)
         } catch (e: Exception) {
             publishFailure("reload failed: ${e.message ?: e.javaClass.simpleName}", startedAt)
-        } finally {
-            inFlight.set(false)
         }
     }
 
-    private fun send(request: ReloadRequest, diff: OutputSnapshot.Diff, startedAt: Long) {
+    private fun send(request: ReloadRequest, peek: OutputSnapshot.Peek, startedAt: Long) {
         RrStatus.reloading(project, request.classes?.size ?: 0)
         val results =
             try {
@@ -152,8 +224,16 @@ class RrReloadService(private val project: Project) {
             }
         val result = merge(results)
         val latencyMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt)
+        if (applied(result.status)) {
+            snapshot.commit(peek.fingerprints)
+            history().clearGutter(peek.diff.classes.map { it.binaryName })
+        }
         record(result, request, latencyMs)
-        render(result, latencyMs, request.classes?.size ?: diff.classes.size)
+        render(result, latencyMs, request.classes?.size ?: peek.diff.classes.size)
+    }
+
+    private fun applied(status: String?): Boolean {
+        return status == ReloadResult.SUCCESS || status == ReloadResult.PARTIAL
     }
 
     private fun merge(results: List<ReloadResult>): ReloadResult {
@@ -243,24 +323,27 @@ class RrReloadService(private val project: Project) {
         }
     }
 
-    private fun currentRoots(context: CompileContext?): List<OutputRoot> {
+    private fun currentLocated(context: CompileContext?): ModuleOutputLocator.LocatedOutputs {
         val includeTests = RrProjectSettings.getInstance(project).includeTests
-        return ModuleOutputLocator.paths(project, context, includeTests)
+        return ModuleOutputLocator.locate(project, context, includeTests)
     }
 
-    private fun noteMissing(roots: List<OutputRoot>) {
-        history().lastMissingOutput =
-            if (roots.isEmpty()) {
-                "no compiler output found"
-            } else {
-                null
-            }
+    private fun noteMissing(located: ModuleOutputLocator.LocatedOutputs) {
+        history().lastMissingOutput = ModuleOutputLocator.formatMissingOutput(located)
+    }
+
+    private fun cancelDebounce() {
+        synchronized(debounceLock) {
+            debounceTask?.cancel(false)
+            debounceTask = null
+        }
     }
 
     private fun history(): RrReloadHistory = RrReloadHistory.getInstance(project)
 
     companion object {
         const val VFS_DEBOUNCE_MS = 150L
+        const val VFS_ARM_MS = 400L
 
         fun getInstance(project: Project): RrReloadService {
             return project.getService(RrReloadService::class.java)

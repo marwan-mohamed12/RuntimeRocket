@@ -1,5 +1,6 @@
 package io.runtimerocket.plugin.watch
 
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -34,6 +35,26 @@ class ModuleOutputLocatorTest {
         assertTrue(main.any { it.endsWith(Path.of("target/classes")) })
         assertFalse(main.any { it.endsWith(Path.of("target/test-classes")) })
         assertTrue(withTests.any { it.endsWith(Path.of("target/test-classes")) })
+    }
+
+    @Test
+    fun mavenSystemIdIsUppercase() {
+        assertEquals("MAVEN", ModuleOutputLocator.MAVEN.id)
+        assertEquals("GRADLE", ModuleOutputLocator.GRADLE.id)
+    }
+
+    @Test
+    fun missingOutputIsReportedPerModule() {
+        assertEquals(
+            "no compiler output found for module kmp",
+            ModuleOutputLocator.formatMissingOutput(listOf("kmp")),
+        )
+        assertEquals(
+            "no compiler output found for modules app, kmp",
+            ModuleOutputLocator.formatMissingOutput(listOf("app", "kmp")),
+        )
+        assertEquals("no compiler output found", ModuleOutputLocator.formatMissingOutput(emptyList(), noRoots = true))
+        assertEquals(null, ModuleOutputLocator.formatMissingOutput(emptyList(), noRoots = false))
     }
 
     @Test

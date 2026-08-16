@@ -29,6 +29,8 @@
                 factoryClass="io.runtimerocket.plugin.ui.RrToolWindowFactory"/>
     <codeInsight.lineMarkerProvider language="JAVA"
                                     implementationClass="io.runtimerocket.plugin.ui.RrLastReloadLineMarkerProvider"/>
+    <codeInsight.lineMarkerProvider language="kotlin"
+                                    implementationClass="io.runtimerocket.plugin.ui.RrLastReloadLineMarkerProvider"/>
     <editorNotificationProvider implementation="io.runtimerocket.plugin.ui.RrRestartEditorNotificationProvider"/>
   </extensions>
 

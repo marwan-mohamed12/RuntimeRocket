@@ -19,11 +19,18 @@ class RrHotSwapPolicyTest {
     fun addMethodDuringCompileTakesVetoPathNotStockHotSwapDialog() {
         assertEquals(RrHotSwapPolicy.BRANCH_A, RrHotSwapPolicy.installedBranch)
         assertEquals(RrHotSwapPolicy.FOOTER_A, RrHotSwapPolicy.footerText())
-        // Path A: stock HotSwap is vetoed for the RR process, so add-method compile
-        // must not open the IDE "add method not supported" dialog.
         assertFalse(RrHotSwapPolicy.shouldAllowStockHotSwap(hasActiveRrSession = true))
         val method = RrHotSwapVeto::class.java.getMethod("shouldHotSwap", com.intellij.task.ProjectTaskContext::class.java)
         assertEquals(Boolean::class.javaPrimitiveType, method.returnType)
         assertTrue(HotSwapVetoableListener::class.java.isAssignableFrom(RrHotSwapVeto::class.java))
+    }
+
+    @Test
+    fun shouldHotSwapIsFalseWhileSessionIsRegistered() {
+        val attached = RrHotSwapVeto(hasActiveSession = { true })
+        val detached = RrHotSwapVeto(hasActiveSession = { false })
+        val context = com.intellij.task.ProjectTaskContext()
+        assertFalse(attached.shouldHotSwap(context))
+        assertTrue(detached.shouldHotSwap(context))
     }
 }
