@@ -23,7 +23,19 @@ final class AgentTestSupport {
     }
 
     static void start(Path watchDir, String token) {
-        String args = "port=0,watch=false,token="
+        start(watchDir, token, false, 150);
+    }
+
+    static void startWatching(Path watchDir, String token) {
+        start(watchDir, token, true, 40);
+    }
+
+    static void start(Path watchDir, String token, boolean watch, int debounceMs) {
+        String args = "port=0,watch="
+                + watch
+                + ",debounceMs="
+                + debounceMs
+                + ",token="
                 + token
                 + ",backend=standard,log=debug,watchDir="
                 + watchDir.toAbsolutePath();

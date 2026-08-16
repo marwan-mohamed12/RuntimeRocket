@@ -11,6 +11,8 @@ java {
 dependencies {
     testImplementation(project(":agent"))
     testImplementation(project(":fixtures:plain-java"))
+    testImplementation(project(":fixtures:two-module:lib"))
+    testImplementation(project(":fixtures:two-module:app"))
     testImplementation(platform("org.junit:junit-bom:${providers.gradleProperty("junit.version").get()}"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testImplementation("net.bytebuddy:byte-buddy-agent:${providers.gradleProperty("bytebuddy.version").get()}")
@@ -18,8 +20,16 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
+val libClasses = project(":fixtures:two-module:lib").layout.buildDirectory.dir("classes/java/main")
+val appClasses = project(":fixtures:two-module:app").layout.buildDirectory.dir("classes/java/main")
+
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
+    dependsOn(":fixtures:two-module:lib:classes", ":fixtures:two-module:app:classes")
+    inputs.dir(libClasses)
+    inputs.dir(appClasses)
+    systemProperty("rr.fixture.lib.classes", libClasses.get().asFile.absolutePath)
+    systemProperty("rr.fixture.app.classes", appClasses.get().asFile.absolutePath)
     jvmArgs(
         "--add-opens=java.base/java.lang=ALL-UNNAMED",
         "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED",

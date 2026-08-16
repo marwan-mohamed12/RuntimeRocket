@@ -3,6 +3,8 @@ package io.runtimerocket.agent;
 import io.runtimerocket.agent.config.Handshake;
 import io.runtimerocket.agent.config.HandshakeFile;
 import io.runtimerocket.agent.config.ProductionGuard;
+import io.runtimerocket.agent.config.RocketXmlDiscovery;
+import io.runtimerocket.agent.config.RocketXmlDocuments;
 import io.runtimerocket.agent.config.Tokens;
 import io.runtimerocket.agent.config.WatchDirs;
 import io.runtimerocket.agent.net.LoopbackServer;
@@ -17,6 +19,9 @@ import java.lang.instrument.Instrumentation;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
 
 /** Process-wide agent state. Started from {@link AgentMain}. */
 public final class AgentRuntime {
@@ -34,6 +39,7 @@ public final class AgentRuntime {
     private ReloadOrchestrator orchestrator;
     private ReloadBackend backend;
     private ClassPathWatcher watcher;
+    private RocketXmlDocuments rocketXml;
     private Thread shutdownHook;
     private boolean lateAttach;
 
@@ -83,9 +89,20 @@ public final class AgentRuntime {
         this.backend = BackendSelector.select(options.backend, inst);
         this.classIndex = new ClassIndex(inst);
         this.classIndex.install();
-        WatchDirs watchDirs = WatchDirs.of(options.watchDirs);
-        this.watcher = new ClassPathWatcher(options, log);
+        this.rocketXml = RocketXmlDiscovery.discover(options, inst, log);
+        List<Path> classpathDirs = new ArrayList<>();
+        List<Path> resourceDirs = new ArrayList<>();
+        classpathDirs.addAll(rocketXml.classpathDirs());
+        resourceDirs.addAll(rocketXml.resourceDirs());
+        classpathDirs.addAll(options.watchDirs);
+        LinkedHashSet<Path> jail = new LinkedHashSet<>();
+        jail.addAll(classpathDirs);
+        jail.addAll(resourceDirs);
+        WatchDirs watchDirs = WatchDirs.of(new ArrayList<>(jail));
+        this.watcher = new ClassPathWatcher(
+                options, log, classpathDirs, resourceDirs, rocketXml.packageFilter());
         this.orchestrator = new ReloadOrchestrator(inst, backend, classIndex, watchDirs, watcher, log);
+        this.watcher.setHandler(orchestrator::reload);
         this.server = new LoopbackServer(
                 token, backend.id(), backend.capabilityNames(), orchestrator, HandshakeFile.pathForPid(pid()), log);
         int bound = server.bind(options.port);
@@ -111,6 +128,20 @@ public final class AgentRuntime {
                 + " port="
                 + bound
                 + (lateAttach ? " late=true" : ""));
+        if (options.watch) {
+            log.info("watching "
+                    + classpathDirs.size()
+                    + " classpath dirs, "
+                    + resourceDirs.size()
+                    + " resource dir"
+                    + (resourceDirs.size() == 1 ? "" : "s"));
+        }
+    }
+
+    public RocketXmlDocuments rocketXml() {
+        synchronized (lock) {
+            return rocketXml;
+        }
     }
 
     private static String resolveToken(AgentOptions options) {
@@ -223,5 +254,6 @@ public final class AgentRuntime {
         backend = null;
         handshakePath = null;
         token = null;
+        rocketXml = null;
     }
 }

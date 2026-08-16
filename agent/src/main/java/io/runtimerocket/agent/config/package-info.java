@@ -1,2 +1,2 @@
-/** Agent configuration, handshake file, and start-time guards. */
+/** Agent configuration, handshake file, {@code runtimerocket.xml}, and start-time guards. */
 package io.runtimerocket.agent.config;

@@ -29,5 +29,7 @@ include(
     "fixtures:plain-java",
     "fixtures:spring-boot",
     "fixtures:two-module",
+    "fixtures:two-module:lib",
+    "fixtures:two-module:app",
     "integration-tests",
 )
