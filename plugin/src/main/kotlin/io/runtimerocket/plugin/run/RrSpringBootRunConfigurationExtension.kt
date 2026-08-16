@@ -4,6 +4,7 @@ import com.intellij.execution.RunConfigurationExtension
 import com.intellij.execution.configurations.JavaParameters
 import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.execution.configurations.RunnerSettings
+import com.intellij.execution.process.ProcessHandler
 import com.intellij.openapi.options.SettingsEditor
 import io.runtimerocket.plugin.settings.RrApplicationSettings
 import org.jdom.Element
@@ -49,6 +50,14 @@ class RrSpringBootRunConfigurationExtension : RunConfigurationExtension() {
     override fun getEditorTitle(): String = "RuntimeRocket"
 
     override fun getSerializationId(): String = "runtimerocket-spring"
+
+    override fun attachToProcess(
+        configuration: RunConfigurationBase<*>,
+        handler: ProcessHandler,
+        runnerSettings: RunnerSettings?,
+    ) {
+        TokenFactory.bindFromProcess(handler)
+    }
 
     override fun extendCreatedConfiguration(configuration: RunConfigurationBase<*>, location: com.intellij.execution.Location<*>) {
         val enable = RrApplicationSettings.getInstance().enableOnNewRunConfigurations

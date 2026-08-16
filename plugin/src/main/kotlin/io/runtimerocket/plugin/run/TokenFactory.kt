@@ -1,6 +1,8 @@
 package io.runtimerocket.plugin.run
 
-import com.intellij.execution.configurations.RunProfile
+import com.intellij.execution.configurations.JavaParameters
+import com.intellij.execution.process.ProcessHandler
+import com.intellij.openapi.util.Key
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
@@ -13,14 +15,17 @@ import java.util.concurrent.ConcurrentHashMap
 /** Session tokens live in a 0600 file. The raw token is never placed on the command line. */
 object TokenFactory {
     private const val TOKEN_BYTES = 32
+    const val ENV_LAUNCH = "RUNTIMEROCKET_LAUNCH"
+    val LAUNCH_KEY: Key<String> = Key.create("io.runtimerocket.launchId")
 
     data class SessionToken(
+        val launchId: String,
         val token: String,
         val file: Path,
         val createdAt: Instant,
     )
 
-    private val byKey = ConcurrentHashMap<String, SessionToken>()
+    private val byLaunchId = ConcurrentHashMap<String, SessionToken>()
 
     fun generate(): String {
         val raw = ByteArray(TOKEN_BYTES)
@@ -28,13 +33,18 @@ object TokenFactory {
         return HexFormat.of().formatHex(raw)
     }
 
-    fun writeSessionFile(configuration: RunProfile, directory: Path = tokenDirectory()): Path {
+    fun newLaunch(directory: Path = tokenDirectory()): SessionToken {
         val token = generate()
         Files.createDirectories(directory)
         RestrictedFiles.restrict(directory)
         val file = writeTokenFile(token, directory)
-        byKey[key(configuration)] = SessionToken(token, file, Instant.now())
-        return file
+        val session = SessionToken(UUID.randomUUID().toString(), token, file, Instant.now())
+        byLaunchId[session.launchId] = session
+        return session
+    }
+
+    fun putOnParameters(params: JavaParameters, launch: SessionToken) {
+        params.addEnv(ENV_LAUNCH, launch.launchId)
     }
 
     fun writeTokenFile(token: String, directory: Path): Path {
@@ -55,12 +65,33 @@ object TokenFactory {
         }
     }
 
-    fun forSession(configuration: RunProfile): String? = byKey[key(configuration)]?.token
+    fun lookup(launchId: String): SessionToken? = byLaunchId[launchId]
 
-    fun sessionToken(configuration: RunProfile): SessionToken? = byKey[key(configuration)]
+    fun bind(handler: ProcessHandler, launchId: String) {
+        handler.putUserData(LAUNCH_KEY, launchId)
+    }
 
-    fun forget(configuration: RunProfile) {
-        val removed = byKey.remove(key(configuration))
+    fun bindFromProcess(handler: ProcessHandler) {
+        val launchId = handler.getUserData(LAUNCH_KEY) ?: extractLaunchId(handler) ?: return
+        handler.putUserData(LAUNCH_KEY, launchId)
+    }
+
+    fun tokenFor(handler: ProcessHandler): SessionToken? {
+        bindFromProcess(handler)
+        val launchId = handler.getUserData(LAUNCH_KEY) ?: return null
+        return byLaunchId[launchId]
+    }
+
+    fun forget(handler: ProcessHandler) {
+        val launchId = handler.getUserData(LAUNCH_KEY) ?: extractLaunchId(handler)
+        handler.putUserData(LAUNCH_KEY, null)
+        if (launchId != null) {
+            forget(launchId)
+        }
+    }
+
+    fun forget(launchId: String) {
+        val removed = byLaunchId.remove(launchId)
         if (removed != null) {
             try {
                 Files.deleteIfExists(removed.file)
@@ -72,7 +103,7 @@ object TokenFactory {
 
     fun tokenDirectory(): Path = Path.of(System.getProperty("java.io.tmpdir"), "runtimerocket", "tokens")
 
-    internal fun key(configuration: RunProfile): String {
-        return configuration.javaClass.name + ":" + configuration.name + ":" + System.identityHashCode(configuration)
+    internal fun extractLaunchId(handler: ProcessHandler): String? {
+        return ProcessLaunchIds.launchId(handler)
     }
 }

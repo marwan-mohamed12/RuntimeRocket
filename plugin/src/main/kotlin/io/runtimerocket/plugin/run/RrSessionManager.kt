@@ -32,17 +32,21 @@ class RrSessionManager(private val project: Project) {
                 if (handshake == null) {
                     return@supplyAsync null
                 }
-                val session = RrSession(expectedToken, handshake, handler)
-                sessions[handler] = session
-                RrHotSwapPolicy.onSessionAttached(project)
-                session
+                RrSession(expectedToken, handshake, handler)
             },
             executor,
         )
     }
 
     fun connect(session: RrSession): RrSession {
-        session.connect()
+        try {
+            session.connect()
+        } catch (e: Exception) {
+            session.close()
+            throw e
+        }
+        session.processHandler?.let { sessions[it] = session }
+        RrHotSwapPolicy.onSessionAttached(project)
         return session
     }
 

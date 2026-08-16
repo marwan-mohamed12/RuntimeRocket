@@ -25,12 +25,35 @@ object RrRunConfigSupport {
 
     fun isJUnit(typeId: String): Boolean = typeId == JUNIT_TYPE_ID
 
-    fun isPatchable(profile: RunProfile, includeTests: Boolean): Boolean {
+    fun isJUnit(profile: RunProfile): Boolean {
         val id = typeId(profile) ?: return false
+        return isJUnit(id)
+    }
+
+    fun isPatchable(profile: RunProfile, includeTests: Boolean): Boolean {
+        return isPatchableType(typeId(profile), includeTests)
+    }
+
+    fun isPatchableType(typeId: String?, includeTests: Boolean): Boolean {
+        if (typeId == null) {
+            return false
+        }
         return when {
-            id == APPLICATION_TYPE_ID || id == JAR_APPLICATION_TYPE_ID -> true
-            isSpringBoot(id) -> springBootPluginPresent()
-            isJUnit(id) -> includeTests
+            typeId == APPLICATION_TYPE_ID || typeId == JAR_APPLICATION_TYPE_ID -> true
+            isSpringBoot(typeId) -> springBootPluginPresent()
+            isJUnit(typeId) -> includeTests
+            else -> false
+        }
+    }
+
+    fun defaultEnabled(typeId: String?, includeTests: Boolean): Boolean {
+        if (typeId == null) {
+            return false
+        }
+        return when {
+            typeId == APPLICATION_TYPE_ID || typeId == JAR_APPLICATION_TYPE_ID -> true
+            isSpringBoot(typeId) -> true
+            isJUnit(typeId) -> includeTests
             else -> false
         }
     }

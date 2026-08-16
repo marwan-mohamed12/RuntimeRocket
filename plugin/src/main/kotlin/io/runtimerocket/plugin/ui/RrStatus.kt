@@ -3,7 +3,7 @@ package io.runtimerocket.plugin.ui
 import com.intellij.openapi.project.Project
 import java.util.concurrent.ConcurrentHashMap
 
-/** In-memory session status. The status-bar widget (PR 9) reads this. */
+/** In-memory session status for the status-bar widget. */
 object RrStatus {
     enum class Phase {
         IDLE,

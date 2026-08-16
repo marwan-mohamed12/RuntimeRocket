@@ -27,6 +27,18 @@ class HandshakeClientTest {
     }
 
     @Test
+    fun scansByTokenWhenExpectedPidIsNull() {
+        val token = "parent-launcher"
+        val started = Instant.parse("2026-08-15T12:00:00Z")
+        writeHandshake(temp.resolve("999.json"), pid = 999, port = 53113, token = token, startedAt = started)
+
+        val client = HandshakeClient(directory = temp, sleeper = { })
+        val found = client.findOnce(expectedPid = null, expectedToken = token, startedAfter = started.minusSeconds(1))
+        assertEquals(999L, found?.pid)
+        assertEquals(53113, found?.port)
+    }
+
+    @Test
     fun ignoresPidFileWithWrongTokenAndScans() {
         val token = "expected-token"
         val started = Instant.parse("2026-08-15T12:00:00Z")

@@ -8,16 +8,7 @@ import io.runtimerocket.plugin.settings.RrProjectSettings
 import io.runtimerocket.plugin.ui.RrNotifier
 import java.util.concurrent.ConcurrentHashMap
 
-/**
- * Suppress IntelliJ debugger HotSwap while an RR session is attached.
- *
- * **Shipped branch: A** — [HotSwapVetoableListener] registered for the project while any
- * RR session is live. Stock HotSwap is cancelled for that compile; we never write
- * application-scoped [com.intellij.debugger.settings.DebuggerSettings].
- *
- * Path B (first-run "set HotSwap to Never" prompt) is only used if the 243–262 veto API
- * is missing at runtime.
- */
+/** Vetoes stock debugger HotSwap while an RR session is live. Does not write DebuggerSettings. */
 object RrHotSwapPolicy {
     const val BRANCH_A = "A"
     const val BRANCH_B = "B"

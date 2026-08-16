@@ -60,4 +60,10 @@ class AgentOptionsTest {
     void rejectsInvalidPort() {
         assertThrows(AgentStartException.class, () -> AgentOptions.parse("port=70000", new Properties()));
     }
+
+    @Test
+    void stripsQuotesAroundTokenFilePath() {
+        AgentOptions opt = AgentOptions.parse("tokenFile=\"C:/Users/foo bar/token.dat\"", new Properties());
+        assertEquals(Path.of("C:/Users/foo bar/token.dat"), opt.tokenFile);
+    }
 }

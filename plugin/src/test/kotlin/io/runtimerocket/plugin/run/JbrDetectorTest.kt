@@ -61,14 +61,27 @@ class JbrDetectorTest {
     }
 
     @Test
-    fun jvmLibraryPlusJbrMarkerIsEnhancedCapable() {
+    fun jvmLibraryPlusSidecarMarkerIsEnhancedCapable() {
         val home = temp.resolve("custom-runtime")
         val server = home.resolve("lib").resolve("server")
         Files.createDirectories(server)
         Files.writeString(server.resolve("jvm.dll"), "stub")
-        Files.writeString(home.resolve("release"), "IMPLEMENTOR=\"JetBrains s.r.o.\"\n")
-        assertTrue(JbrDetector.isEnhancedCapable(home, null))
+        Files.writeString(home.resolve("lib").resolve("jbr-release"), "JBR sidecar")
         assertTrue(JbrDetector.hasJvmLibrary(home))
+        assertTrue(JbrDetector.hasSidecarJbrMarker(home))
+        assertTrue(JbrDetector.isEnhancedCapable(home, null))
+    }
+
+    @Test
+    fun jvmLibraryAloneIsNotEnhancedCapable() {
+        val home = temp.resolve("temurin-home")
+        val server = home.resolve("lib").resolve("server")
+        Files.createDirectories(server)
+        Files.writeString(server.resolve("jvm.dll"), "stub")
+        Files.writeString(home.resolve("release"), "IMPLEMENTOR=\"Eclipse Adoptium\"\n")
+        assertTrue(JbrDetector.hasJvmLibrary(home))
+        assertFalse(JbrDetector.hasSidecarJbrMarker(home))
+        assertFalse(JbrDetector.isEnhancedCapable(home, null))
     }
 
     @Test

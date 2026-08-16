@@ -33,8 +33,8 @@ object JbrDetector {
         if (release != null && releaseLooksEnhanced(release)) {
             return true
         }
-        return hasJvmLibrary(home) &&
-            ((release != null && releaseLooksEnhanced(release)) || mentionsJbrOrDcevm(home.fileName.toString()))
+        // Sidecar marker is independent of path / IMPLEMENTOR hits.
+        return hasJvmLibrary(home) && hasSidecarJbrMarker(home)
     }
 
     fun jbrHome(): Path? {
@@ -83,6 +83,15 @@ object JbrDetector {
         } catch (_: Exception) {
             null
         }
+    }
+
+    internal fun hasSidecarJbrMarker(home: Path): Boolean {
+        val candidates =
+            listOf(
+                home.resolve("lib").resolve("jbr-release"),
+                home.resolve("jbr-release"),
+            )
+        return candidates.any { Files.isRegularFile(it) }
     }
 
     internal fun hasJvmLibrary(home: Path): Boolean {

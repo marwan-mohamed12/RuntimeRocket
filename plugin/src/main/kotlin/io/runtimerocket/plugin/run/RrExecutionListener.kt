@@ -1,13 +1,11 @@
 package io.runtimerocket.plugin.run
 
 import com.intellij.execution.ExecutionListener
-import com.intellij.execution.configurations.RunConfiguration
 import com.intellij.execution.process.ProcessHandler
 import com.intellij.execution.runners.ExecutionEnvironment
 import io.runtimerocket.plugin.settings.RrProjectSettings
 import io.runtimerocket.plugin.ui.RrNotifier
 import io.runtimerocket.plugin.ui.RrStatus
-import java.time.Instant
 
 class RrExecutionListener : ExecutionListener {
     override fun processStarted(executorId: String, env: ExecutionEnvironment, handler: ProcessHandler) {
@@ -17,7 +15,7 @@ class RrExecutionListener : ExecutionListener {
         if (!settings.enabledFor(configuration)) {
             return
         }
-        val sessionToken = TokenFactory.sessionToken(configuration) ?: return
+        val sessionToken = TokenFactory.tokenFor(handler) ?: return
         val pid = handler.rrPid()
         val startedAfter = sessionToken.createdAt.minusSeconds(2)
         RrStatus.waitingForAgent(project)
@@ -38,6 +36,8 @@ class RrExecutionListener : ExecutionListener {
                 RrStatus.attached(project, session.backend)
                 RrNotifier.attached(project, session.backend)
             } catch (e: Exception) {
+                manager.disconnect(handler)
+                TokenFactory.forget(handler)
                 RrStatus.notAttached(project)
                 RrNotifier.handshakeFailed(project, e.message)
             }
@@ -52,10 +52,7 @@ class RrExecutionListener : ExecutionListener {
     ) {
         val project = env.project
         RrSessionManager.getInstance(project).disconnect(handler)
-        val configuration = env.runProfile
-        if (configuration is RunConfiguration) {
-            TokenFactory.forget(configuration)
-        }
+        TokenFactory.forget(handler)
         if (!RrSessionManager.getInstance(project).hasActiveSession()) {
             RrStatus.idle(project)
         }

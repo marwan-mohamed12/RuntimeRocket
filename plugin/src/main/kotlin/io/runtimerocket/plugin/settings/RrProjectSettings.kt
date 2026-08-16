@@ -1,5 +1,6 @@
 package io.runtimerocket.plugin.settings
 
+import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.execution.configurations.RunProfile
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.Service
@@ -75,14 +76,20 @@ class RrProjectSettings : PersistentStateComponent<RrProjectSettings.State> {
         }
 
     fun enabledFor(configuration: RunProfile): Boolean {
+        val typeId = RrRunConfigSupport.typeId(configuration)
+        val userEnabled = (configuration as? RunConfigurationBase<*>)?.getUserData(RrRunConfigState.ENABLED_KEY)
+        return decideEnabled(typeId, userEnabled)
+    }
+
+    fun decideEnabled(typeId: String?, userEnabled: Boolean?): Boolean {
         if (!state.enabled) {
             return false
         }
-        if (!RrRunConfigSupport.isPatchable(configuration, state.includeTests)) {
+        if (!RrRunConfigSupport.isPatchableType(typeId, state.includeTests)) {
             return false
         }
-        val defaultOn = RrRunConfigSupport.isApplicationFamily(configuration)
-        return RrRunConfigState.isEnabled(configuration, defaultOn)
+        val defaultOn = RrRunConfigSupport.defaultEnabled(typeId, state.includeTests)
+        return userEnabled ?: defaultOn
     }
 
     override fun getState(): State = state

@@ -4,6 +4,7 @@ import com.intellij.openapi.application.PathManager
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
+import java.security.MessageDigest
 
 object AgentJarLocator {
     const val RESOURCE = "/io/runtimerocket/plugin/agent/runtimerocket-agent.jar"
@@ -39,7 +40,22 @@ object AgentJarLocator {
         return destination
     }
 
-    private fun sameContent(left: Path, right: Path): Boolean {
-        return Files.size(left) == Files.size(right)
+    internal fun sameContent(left: Path, right: Path): Boolean {
+        return digest(left).contentEquals(digest(right))
+    }
+
+    private fun digest(path: Path): ByteArray {
+        val md = MessageDigest.getInstance("SHA-256")
+        Files.newInputStream(path).use { input ->
+            val buf = ByteArray(8192)
+            while (true) {
+                val n = input.read(buf)
+                if (n < 0) {
+                    break
+                }
+                md.update(buf, 0, n)
+            }
+        }
+        return md.digest()
     }
 }

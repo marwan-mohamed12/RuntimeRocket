@@ -22,6 +22,7 @@ class RrAgentClient(
     private val port: Int,
     private val token: String,
     private val host: String = "127.0.0.1",
+    private val helloReadTimeoutMs: Int = HELLO_READ_TIMEOUT_MS,
 ) : AutoCloseable {
     private var socket: Socket? = null
     private var reader: BufferedReader? = null
@@ -35,7 +36,8 @@ class RrAgentClient(
     fun connect(): HelloOk {
         val sock = Socket()
         sock.tcpNoDelay = true
-        sock.connect(InetSocketAddress(InetAddress.getByName(host), port), 5_000)
+        sock.connect(InetSocketAddress(InetAddress.getByName(host), port), CONNECT_TIMEOUT_MS)
+        sock.soTimeout = helloReadTimeoutMs
         socket = sock
         reader = BufferedReader(InputStreamReader(sock.getInputStream(), StandardCharsets.UTF_8))
         writer = BufferedWriter(OutputStreamWriter(sock.getOutputStream(), StandardCharsets.UTF_8))
@@ -56,7 +58,13 @@ class RrAgentClient(
             )
         }
         helloOk = ok
+        sock.soTimeout = 0
         return ok
+    }
+
+    companion object {
+        const val CONNECT_TIMEOUT_MS = 5_000
+        const val HELLO_READ_TIMEOUT_MS = 5_000
     }
 
     fun send(frame: Frame) {

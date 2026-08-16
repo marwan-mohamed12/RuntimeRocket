@@ -17,9 +17,10 @@ class RrJavaProgramPatcher : JavaProgramPatcher() {
         }
 
         val agentJar = AgentJarLocator.ensureUnpacked()
-        val tokenFile = TokenFactory.writeSessionFile(configuration)
+        val launch = TokenFactory.newLaunch()
+        TokenFactory.putOnParameters(params, launch)
         val enhanced = JbrDetector.isEnhancedCapable(params.jdk)
-        applyTo(params, agentJar, tokenFile, settings.logLevel, enhanced)
+        applyTo(params, agentJar, launch.file, settings.logLevel, enhanced)
 
         if (!enhanced && settings.preferEnhanced && JbrDetector.jbrHome() != null) {
             RrNotifier.warnLimitedHotSwap(project, params.jdk)

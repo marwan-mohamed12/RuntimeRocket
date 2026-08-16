@@ -200,7 +200,11 @@ public final class AgentOptions {
         if (raw == null || raw.isBlank()) {
             return null;
         }
-        return Path.of(raw);
+        String path = raw.trim();
+        if (path.length() >= 2 && path.charAt(0) == '"' && path.charAt(path.length() - 1) == '"') {
+            path = path.substring(1, path.length() - 1);
+        }
+        return Path.of(path);
     }
 
     private static String emptyToNull(String raw) {

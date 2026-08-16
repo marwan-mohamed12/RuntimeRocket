@@ -68,4 +68,21 @@ class RrAgentClientTest {
             exec.shutdownNow()
         }
     }
+
+    @Test
+    fun helloReadTimesOutWhenAgentNeverReplies() {
+        ServerSocket(0, 1, InetAddress.getByName("127.0.0.1")).use { server ->
+            val port = server.localPort
+            val exec = Executors.newSingleThreadExecutor()
+            exec.submit {
+                server.accept().use { _ ->
+                    Thread.sleep(2_000)
+                }
+            }
+            assertThrows(Exception::class.java) {
+                RrAgentClient(port = port, token = "secret", helloReadTimeoutMs = 200).use { it.connect() }
+            }
+            exec.shutdownNow()
+        }
+    }
 }

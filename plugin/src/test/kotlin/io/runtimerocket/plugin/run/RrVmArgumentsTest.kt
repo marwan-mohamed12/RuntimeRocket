@@ -44,4 +44,17 @@ class RrVmArgumentsTest {
         assertFalse(keys.contains("token"), keys.toString())
         assertTrue(keys.contains("log"), keys.toString())
     }
+
+    @Test
+    fun quotesAgentAndTokenPathsThatContainSpaces() {
+        val arg = RrVmArguments.javaAgent(agent, tokenFile, "info")
+        val jarQuoted = RrVmArguments.quote(agent)
+        val tokenQuoted = RrVmArguments.quote(tokenFile)
+        assertTrue(agent.toAbsolutePath().toString().contains("Program Files"), agent.toString())
+        assertTrue(tokenFile.toAbsolutePath().toString().contains("foo bar"), tokenFile.toString())
+        assertTrue(arg.contains(jarQuoted), arg)
+        assertTrue(arg.contains("tokenFile=$tokenQuoted"), arg)
+        assertTrue(jarQuoted.startsWith("\"") && jarQuoted.endsWith("\""), jarQuoted)
+        assertTrue(tokenQuoted.startsWith("\"") && tokenQuoted.endsWith("\""), tokenQuoted)
+    }
 }
