@@ -30,10 +30,12 @@ public final class SpringContextFinder {
         "org.springframework.boot.undertow.servlet.UndertowServletWebServerFactory"
     };
 
+    // Domain-qualified only. A "*:" domain match walks every MBean and can stall
+    // late-attach on a loaded JVM; idle Boot still returns immediately.
     private static final String[] MBEAN_PATTERNS = {
-        "*:j2eeType=WebModule,*",
-        "*:type=Context,*",
         "Catalina:j2eeType=WebModule,*",
+        "Catalina:type=Context,*",
+        "Tomcat:j2eeType=WebModule,*",
         "Tomcat:type=Context,*",
         "org.eclipse.jetty.servlet:type=context,*",
         "org.eclipse.jetty.webapp:type=webappcontext,*"
