@@ -79,40 +79,81 @@ Same tasks with `./gradlew`:
 
 The zip is `plugin/build/distributions/plugin-0.1.0-SNAPSHOT.zip`.
 
-## Install the plugin from disk
+## Install the plugin into IntelliJ
 
-0.1.0 is installed from this zip, not from the Marketplace.
+0.1.0 is installed from this zip, **not** from the JetBrains Marketplace.
+You need IntelliJ IDEA **2024.3–2026.2** (Community or Ultimate).
 
-1. Build `:plugin:buildPlugin` (above).
-2. In IntelliJ: **Settings | Plugins** → gear → **Install Plugin from Disk…**
-3. Choose `plugin/build/distributions/plugin-0.1.0-SNAPSHOT.zip`.
-4. Restart the IDE when prompted.
+### 1. Build the plugin zip
 
-You can also run a sandboxed IDE with the plugin already loaded:
+```powershell
+.\gradlew.bat :plugin:buildPlugin
+```
+
+```bash
+./gradlew :plugin:buildPlugin
+```
+
+The zip is `plugin/build/distributions/plugin-0.1.0-SNAPSHOT.zip`
+(`plugin\build\distributions\plugin-0.1.0-SNAPSHOT.zip` on Windows).
+
+### 2. Install from disk
+
+1. Open IntelliJ.
+2. **File | Settings** (macOS: **IntelliJ IDEA | Settings**).
+3. **Plugins**.
+4. Click the **gear** next to Marketplace / Installed.
+5. **Install Plugin from Disk…**
+6. Choose `plugin/build/distributions/plugin-0.1.0-SNAPSHOT.zip`.
+7. Restart the IDE when prompted.
+
+After restart, **Settings | Plugins | Installed** should list **RuntimeRocket**.
+
+### 3. Turn it on for the project
+
+1. **Settings | Tools | RuntimeRocket**.
+2. Leave **Enable RuntimeRocket** checked (project default is on).
+3. Keep **Reload after a successful compile** on.
+4. Leave **Include test output** off unless you want JUnit reloads.
+
+### 4. Enable it on the run configuration
+
+1. **Run | Edit Configurations…**
+2. Select your **Application** or **Jar Application** configuration.
+   On IntelliJ Ultimate, a **Spring Boot** run configuration gets the same
+   checkbox when the Spring Boot plugin is present.
+3. Open the **RuntimeRocket** tab and keep **Enable RuntimeRocket** checked.
+   New Application configs default to on once the project setting is enabled.
+4. Point the configuration JRE at **JetBrains Runtime** if you want enhanced
+   HotSwap (add methods/fields). The plugin never silently swaps the JRE; it
+   offers **Use bundled JetBrains Runtime** once per project.
+
+`hybrisserver`, Gradle `bootRun`, and `JavaExec` are **not** patched — see
+Limitations. Use an Application (or Spring Boot) run configuration, or
+**Tools | Attach RuntimeRocket** after the process is up.
+
+### 5. Verify it attached
+
+1. **Run** or **Debug** that configuration.
+2. The status bar should go `RR … waiting for agent`, then `RR ● enhanced`
+   (JBR / DCEVM) or `RR ● standard` (stock JDK).
+3. Change a Java method and **Build | Build Project** (or rely on automatic
+   build).
+4. The status bar should show `RR ✓ … ms`. Click it to open
+   **View | Tool Windows | RuntimeRocket**.
+
+If you see `RR ○ not attached`, the process never got `-javaagent` (wrong
+run-configuration type, or a forked Gradle JVM). Compiling then does **not**
+reload.
+
+### Sandbox IDE (no install into your main IntelliJ)
 
 ```powershell
 .\gradlew.bat :plugin:runIde
 ```
 
-## Enable RuntimeRocket on an Application run configuration
-
-1. Open **Settings | Tools | RuntimeRocket** and leave **Enable RuntimeRocket**
-   checked (project default is on).
-2. Open your **Application** or **Jar Application** run configuration.
-3. Open the **RuntimeRocket** tab and keep **Enable RuntimeRocket** checked.
-   New Application configs default to on. On IntelliJ Ultimate, a **Spring Boot**
-   run configuration gets the same checkbox when the Spring Boot plugin is present.
-4. Point the configuration JRE at **JetBrains Runtime** if you want enhanced
-   HotSwap (add methods/fields). The plugin never silently swaps the JRE; it
-   offers “Use bundled JetBrains Runtime” once per project.
-5. Run or Debug. The status bar should show `RR … waiting for agent`, then
-   `RR ● enhanced` (or `RR ● standard` on a stock JDK).
-6. Edit a Java class, **Build | Build Project** (or rely on automatic build).
-   The status bar shows `RR ✓ 142 ms` on success. Click it to open the
-   RuntimeRocket tool window.
-
-JUnit is off unless you enable **Include test output** in project settings.
-**Gradle `bootRun` / `JavaExec` is not patched** — see Limitations.
+That starts a throwaway IntelliJ with the plugin already loaded. Your
+installed IDE is unchanged.
 
 ## JetBrains Runtime (enhanced HotSwap)
 
