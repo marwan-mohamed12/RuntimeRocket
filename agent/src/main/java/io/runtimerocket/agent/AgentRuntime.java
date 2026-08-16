@@ -6,10 +6,10 @@ import io.runtimerocket.agent.config.ProductionGuard;
 import io.runtimerocket.agent.config.Tokens;
 import io.runtimerocket.agent.config.WatchDirs;
 import io.runtimerocket.agent.net.LoopbackServer;
+import io.runtimerocket.agent.reload.BackendSelector;
 import io.runtimerocket.agent.reload.ClassIndex;
 import io.runtimerocket.agent.reload.ReloadBackend;
 import io.runtimerocket.agent.reload.ReloadOrchestrator;
-import io.runtimerocket.agent.reload.StandardHotSwapBackend;
 import io.runtimerocket.agent.watch.ClassPathWatcher;
 
 import java.io.IOException;
@@ -80,7 +80,7 @@ public final class AgentRuntime {
         }
 
         this.token = resolveToken(options);
-        this.backend = selectBackend(options.backend, inst);
+        this.backend = BackendSelector.select(options.backend, inst);
         this.classIndex = new ClassIndex(inst);
         this.classIndex.install();
         WatchDirs watchDirs = WatchDirs.of(options.watchDirs);
@@ -111,18 +111,6 @@ public final class AgentRuntime {
                 + " port="
                 + bound
                 + (lateAttach ? " late=true" : ""));
-    }
-
-    private ReloadBackend selectBackend(String requested, Instrumentation inst) {
-        String id = requested == null ? AgentOptions.BACKEND_AUTO : requested;
-        if (AgentOptions.BACKEND_AUTO.equals(id) || AgentOptions.BACKEND_STANDARD.equals(id)) {
-            StandardHotSwapBackend standard = new StandardHotSwapBackend();
-            if (!standard.probe(inst)) {
-                throw new AgentStartException("standard HotSwap is not available");
-            }
-            return standard;
-        }
-        throw new AgentStartException("backend '" + id + "' is not available");
     }
 
     private static String resolveToken(AgentOptions options) {

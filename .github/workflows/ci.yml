@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  unit:
+    name: unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+      - name: Unit tests
+        run: ./gradlew :protocol:test :agent:test :agent:shadowJar --no-daemon
+
+  enhanced-jbr:
+    name: enhanced-jbr
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JBR 21
+        id: jbr
+        continue-on-error: true
+        uses: actions/setup-java@v4
+        with:
+          distribution: jetbrains
+          java-version: "21"
+          java-package: jdk
+          cache: gradle
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Enhanced integration tests
+        if: steps.jbr.outcome == 'success'
+        run: ./gradlew :integration-tests:test --no-daemon -Prr.testJavaHome="$JAVA_HOME"
