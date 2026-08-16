@@ -194,6 +194,12 @@ public final class AgentRuntime {
         }
     }
 
+    public ClassPathWatcher watcher() {
+        synchronized (lock) {
+            return watcher;
+        }
+    }
+
     public void stop() {
         synchronized (lock) {
             if (!started && server == null && handshakePath == null) {

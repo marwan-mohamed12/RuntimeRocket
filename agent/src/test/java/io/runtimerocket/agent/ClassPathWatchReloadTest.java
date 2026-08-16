@@ -85,9 +85,23 @@ class ClassPathWatchReloadTest {
         assertEquals(2, TestClasses.invokeValue(type, instance));
 
         Files.write(classFile, later);
-        Thread.sleep(400);
+        AgentRuntime.get().watcher().notifyChanged(classFile);
+        Thread.sleep(300);
         assertEquals(2, TestClasses.invokeValue(type, instance));
-        assertTrue(AgentRuntime.get().orchestrator() != null);
+        assertTrue(AgentRuntime.get().watcher().isSuppressed(classFile));
+
+        await(() -> !AgentRuntime.get().watcher().isSuppressed(classFile), 1_500);
+        byte[] afterWindow = TestClasses.bodyClass(name, 4);
+        Files.write(classFile, afterWindow);
+        AgentRuntime.get().watcher().notifyChanged(classFile);
+        await(() -> {
+            try {
+                return TestClasses.invokeValue(type, instance) == 4;
+            } catch (Exception e) {
+                return false;
+            }
+        }, 3_000);
+        assertEquals(4, TestClasses.invokeValue(type, instance));
     }
 
     private static void await(BooleanSupplier cond, long timeoutMs) throws InterruptedException {

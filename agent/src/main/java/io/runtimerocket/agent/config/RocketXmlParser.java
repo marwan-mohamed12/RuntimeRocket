@@ -16,7 +16,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Independent {@code runtimerocket.xml} parser. Not a JRebel {@code rebel.xml} clone. */
+/** Parses {@code runtimerocket.xml} version 1. */
 public final class RocketXmlParser {
 
     public static final String NAMESPACE = "https://runtimerocket.io/ns/config";

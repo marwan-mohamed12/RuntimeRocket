@@ -75,10 +75,13 @@ class TwoModuleWatchIT {
                 + ",watchDir="
                 + appOut.toAbsolutePath();
         AgentMain.premain(args, ByteBuddyAgent.install());
-        assertNotNull(AgentRuntime.get().rocketXml());
-        assertTrue(
-                AgentRuntime.get().rocketXml().packageFilter().accepts(LibGreeter.class.getName()),
-                "union must include lib packages");
+        RocketXmlDocuments live = AgentRuntime.get().rocketXml();
+        assertNotNull(live);
+        assertTrue(live.documents().size() >= 2, live.documents().toString());
+        assertTrue(live.classpathDirs().stream().anyMatch(p -> sameDir(p, libOut)), live.classpathDirs().toString());
+        assertTrue(live.classpathDirs().stream().anyMatch(p -> sameDir(p, appOut)), live.classpathDirs().toString());
+        assertTrue(live.packageFilter().accepts(LibGreeter.class.getName()));
+        assertTrue(live.packageFilter().accepts(App.class.getName()));
 
         try {
             Files.write(classFile, rewriteVersion(original, 2));
