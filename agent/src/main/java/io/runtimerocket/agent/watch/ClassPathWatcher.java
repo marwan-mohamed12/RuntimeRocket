@@ -260,6 +260,20 @@ public final class ClassPathWatcher implements AutoCloseable {
         } catch (IOException e) {
             return;
         }
+        // Truncate-then-write (Linux inotify) can deliver MODIFY on an empty or
+        // half-written file. Do not clobber the last good hash or we reload the
+        // completed write even when the bytes did not change.
+        if (bytes.length == 0) {
+            return;
+        }
+        String fileName = path.getFileName().toString();
+        String binaryName = null;
+        if (fileName.endsWith(".class")) {
+            binaryName = className(bytes);
+            if (binaryName == null) {
+                return;
+            }
+        }
         String hash = Hashes.sha256Hex(bytes);
         remember(path, bytes.length, hash);
         if (isSuppressed(path)) {
@@ -270,10 +284,8 @@ public final class ClassPathWatcher implements AutoCloseable {
         if (previous != null && Hashes.equalHex(previous, hash)) {
             return;
         }
-        String fileName = path.getFileName().toString();
-        if (fileName.endsWith(".class")) {
-            String binaryName = className(bytes);
-            if (binaryName == null || !packages.accepts(binaryName)) {
+        if (binaryName != null) {
+            if (!packages.accepts(binaryName)) {
                 return;
             }
             classes.add(new ClassPayload(binaryName, path.toString(), hash, null));

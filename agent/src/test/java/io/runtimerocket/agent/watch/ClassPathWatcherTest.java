@@ -71,6 +71,9 @@ class ClassPathWatcherTest {
         watcher.notifyChanged(classFile);
         await(() -> !seen.isEmpty(), 2_000);
         assertEquals(1, seen.size());
+        Files.write(classFile, new byte[0]);
+        watcher.notifyChanged(classFile);
+        Thread.sleep(80);
         Files.write(classFile, bodyClass("demo.rr.Hash", 2));
         watcher.notifyChanged(classFile);
         Thread.sleep(300);
