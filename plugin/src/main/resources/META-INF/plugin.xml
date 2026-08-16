@@ -4,10 +4,36 @@
   <vendor>RuntimeRocket</vendor>
   <description><![CDATA[
     Reload compiled JVM changes into a running application without a restart.
-    Stub plugin descriptor; implementation lands in later pull requests.
+    Injects the RuntimeRocket agent on Application run configurations and
+    connects over a loopback handshake. Spring Boot checkboxes load only when
+    the optional Ultimate Spring Boot plugin is present.
   ]]></description>
   <depends>com.intellij.modules.platform</depends>
   <depends>com.intellij.modules.java</depends>
   <depends>com.intellij.modules.lang</depends>
+  <depends optional="true" config-file="rr-spring.xml">com.intellij.spring.boot</depends>
   <idea-version since-build="243" until-build="262.*"/>
+
+  <extensions defaultExtensionNs="com.intellij">
+    <postStartupActivity implementation="io.runtimerocket.plugin.RrStartupActivity"/>
+    <java.programPatcher implementation="io.runtimerocket.plugin.run.RrJavaProgramPatcher"/>
+    <notificationGroup id="RuntimeRocket" displayType="BALLOON"/>
+    <projectConfigurable parentId="tools"
+                         id="io.runtimerocket"
+                         instance="io.runtimerocket.plugin.settings.RrConfigurable"
+                         displayName="RuntimeRocket"/>
+    <runConfigurationExtension implementation="io.runtimerocket.plugin.run.RrRunConfigurationExtension"/>
+  </extensions>
+
+  <projectListeners>
+    <listener class="io.runtimerocket.plugin.run.RrExecutionListener"
+              topic="com.intellij.execution.ExecutionListener"/>
+  </projectListeners>
+
+  <actions>
+    <action id="rr.toggle"
+            class="io.runtimerocket.plugin.ui.ToggleRrAction"
+            text="Enable RuntimeRocket on Run Configuration"
+            description="Toggle RuntimeRocket on the selected run configuration"/>
+  </actions>
 </idea-plugin>
