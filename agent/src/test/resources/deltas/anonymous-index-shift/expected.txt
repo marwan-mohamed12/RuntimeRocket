@@ -1,0 +1,2 @@
+contains=INNER_CLASSES_MAP
+shift=true

@@ -1,0 +1,13 @@
+RuntimeRocket
+Copyright 2026 RuntimeRocket contributors
+
+This product is licensed under the Apache License, Version 2.0.
+See the LICENSE file in the project root.
+
+This product will depend on the following third-party software:
+
+ASM (https://asm.ow2.io/)
+Copyright (c) 2000-2011 INRIA, France Telecom
+Licensed under the BSD 3-Clause License.
+
+Additional third-party notices will be added here as dependencies are introduced.

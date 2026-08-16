@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# Unit tests: all three OSes. JBR setup may fail (continue-on-error on that
+# step only). JBR 25 is an optional job. pluginVerifier is IC-2024.3 only:
+# IC installers ended at 2025.3, and 2026.2 is a follow-up (unified
+# IntellijIdea type + large extra download). Do not use recommended().
+
+jobs:
+  unit:
+    name: unit (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            17
+            21
+          cache: gradle
+      - name: Unit tests
+        shell: bash
+        run: ./gradlew :protocol:test :agent-api:test :agent:test :frameworks:spring:test :plugin:test :agent:shadowJar --no-daemon
+
+  enhanced-jbr:
+    name: enhanced-jbr-${{ matrix.jbr }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        jbr: ["17", "21"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JBR ${{ matrix.jbr }}
+        id: jbr
+        continue-on-error: true
+        uses: actions/setup-java@v4
+        with:
+          distribution: jetbrains
+          java-version: ${{ matrix.jbr }}
+          java-package: jdk
+          cache: gradle
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Enhanced integration tests
+        if: steps.jbr.outcome == 'success'
+        run: ./gradlew :integration-tests:test --no-daemon -Prr.testJavaHome="$JAVA_HOME"
+
+  enhanced-jbr-25:
+    name: enhanced-jbr-25
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JBR 25
+        id: jbr
+        continue-on-error: true
+        uses: actions/setup-java@v4
+        with:
+          distribution: jetbrains
+          java-version: "25"
+          java-package: jdk
+          cache: gradle
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Enhanced integration tests (JBR 25)
+        if: steps.jbr.outcome == 'success'
+        run: ./gradlew :integration-tests:test --no-daemon -Prr.testJavaHome="$JAVA_HOME"
+
+  plugin-verifier:
+    name: pluginVerifier
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            17
+            21
+          cache: gradle
+      - name: Verify plugin (IC-2024.3)
+        run: ./gradlew :plugin:verifyPlugin --no-daemon

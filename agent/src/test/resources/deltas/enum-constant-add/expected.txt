@@ -1,0 +1,2 @@
+contains=ENUM_CONSTANTS
+shift=false
