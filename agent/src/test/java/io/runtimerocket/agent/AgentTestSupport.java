@@ -31,6 +31,14 @@ final class AgentTestSupport {
     }
 
     static void start(Path watchDir, String token, boolean watch, int debounceMs) {
+        start(watchDir, token, watch, debounceMs, false);
+    }
+
+    static void startLate(Path watchDir, String token) {
+        start(watchDir, token, false, 150, true);
+    }
+
+    static void start(Path watchDir, String token, boolean watch, int debounceMs, boolean late) {
         String args = "port=0,watch="
                 + watch
                 + ",debounceMs="
@@ -39,7 +47,11 @@ final class AgentTestSupport {
                 + token
                 + ",backend=standard,log=debug,watchDir="
                 + watchDir.toAbsolutePath();
-        AgentMain.premain(args, instrumentation());
+        if (late) {
+            AgentMain.agentmain(args, instrumentation());
+        } else {
+            AgentMain.premain(args, instrumentation());
+        }
     }
 
     static void stop() {

@@ -2,6 +2,7 @@ package io.runtimerocket.agent;
 
 import io.runtimerocket.agent.config.Handshake;
 import io.runtimerocket.agent.config.HandshakeFile;
+import io.runtimerocket.agent.spi.LateAttachPartialAdapter;
 import io.runtimerocket.protocol.Hello;
 import io.runtimerocket.protocol.HelloOk;
 import io.runtimerocket.protocol.Ping;
@@ -39,6 +40,7 @@ class AgentBootstrapTest {
 
     @AfterEach
     void tearDown() {
+        LateAttachPartialAdapter.disable();
         AgentTestSupport.stop();
     }
 
@@ -93,6 +95,18 @@ class AgentBootstrapTest {
             socket.getOutputStream().flush();
             assertEquals(-1, socket.getInputStream().read());
         }
+    }
+
+    @Test
+    void lateAttachWritesAdapterNotesToHandshake() {
+        LateAttachPartialAdapter.enable();
+        String token = AgentTestSupport.token();
+        AgentTestSupport.startLate(temp, token);
+
+        Handshake handshake = HandshakeFile.read(AgentRuntime.get().handshakePath());
+        assertTrue(
+                handshake.notes.contains(LateAttachPartialAdapter.DETAIL),
+                String.valueOf(handshake.notes));
     }
 
     @Test

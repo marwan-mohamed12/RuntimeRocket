@@ -3,11 +3,18 @@ package io.runtimerocket.plugin.run
 import io.runtimerocket.protocol.AdapterOutcome
 import io.runtimerocket.protocol.ReloadResult
 
-/** Surfaces the §9.1 late-attach Spring PARTIAL note. Never a silent no-op when that string is present. */
+/** Surfaces the Spring inactive note as a visible PARTIAL result. Never a silent no-op when that string is present. */
 object LateAttachNotes {
     const val SPRING_INACTIVE_MARKER = "Spring adapter inactive"
     const val SPRING_INACTIVE_DETAIL =
         "Spring adapter inactive until a request hits the app or you restart with -javaagent (premain)."
+
+    data class Display(
+        val status: String,
+        val balloon: String,
+        val historyMessage: String,
+        val toolWindowLine: String,
+    )
 
     fun collect(
         handshake: HandshakeDocument? = null,
@@ -42,5 +49,15 @@ object LateAttachNotes {
 
     fun balloonText(note: String): String = note
 
-    fun toolWindowText(note: String): String = "PARTIAL  $note"
+    fun toolWindowText(note: String): String = "PARTIAL $note"
+
+    fun displayDecision(handshake: HandshakeDocument?, result: ReloadResult? = null): Display? {
+        val note = springInactive(collect(handshake = handshake, result = result)) ?: return null
+        return Display(
+            status = ReloadResult.PARTIAL,
+            balloon = balloonText(note),
+            historyMessage = note,
+            toolWindowLine = toolWindowText(note),
+        )
+    }
 }

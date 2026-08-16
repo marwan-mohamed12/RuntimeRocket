@@ -151,7 +151,7 @@ class AttachRuntimeRocketAction : AnAction(RrLateAttach.ACTION_TEXT), DumbAware 
         internal fun present(project: Project, result: RrLateAttach.Result) {
             if (!result.ok) {
                 val error = result.error?.takeIf { it.isNotBlank() } ?: "Failed to attach RuntimeRocket to pid ${result.pid}."
-                RrStatus.notAttached(project)
+                applyFailureStatus(project)
                 RrNotifier.attachFailed(project, error)
                 Messages.showErrorDialog(project, error, RrLateAttach.ACTION_TEXT)
                 return
@@ -163,24 +163,39 @@ class AttachRuntimeRocketAction : AnAction(RrLateAttach.ACTION_TEXT), DumbAware 
             displayLateAttachNotes(project, handshake)
         }
 
-        internal fun displayLateAttachNotes(project: Project, handshake: HandshakeDocument?) {
-            val note = LateAttachNotes.springInactive(LateAttachNotes.collect(handshake = handshake)) ?: return
-            RrNotifier.lateAttachSpringInactive(project, note)
+        internal fun applyFailureStatus(project: Project) {
+            val manager = RrSessionManager.getInstance(project)
+            val backend = failureKeepsAttached(manager.hasActiveSession(), manager.activeSessions().firstOrNull()?.backend)
+            if (backend == null) {
+                RrStatus.notAttached(project)
+            } else {
+                RrStatus.attached(project, backend)
+            }
+        }
+
+        internal fun failureKeepsAttached(hasActiveSession: Boolean, existingBackend: String?): String? {
+            return if (hasActiveSession) existingBackend.orEmpty() else null
+        }
+
+        internal fun displayLateAttachNotes(project: Project, handshake: HandshakeDocument?): LateAttachNotes.Display? {
+            val decision = LateAttachNotes.displayDecision(handshake) ?: return null
+            RrNotifier.lateAttachSpringInactive(project, decision.balloon)
             RrReloadHistory.getInstance(project).record(
                 RrReloadHistory.Event(
                     time = Instant.now(),
                     classCount = 0,
                     resourceCount = 0,
-                    status = ReloadResult.PARTIAL,
+                    status = decision.status,
                     durationMs = 0,
                     latencyMs = 0,
-                    message = note,
+                    message = decision.historyMessage,
                     classes = emptyList(),
                     adapters = emptyList(),
                     trigger = "late-attach",
                 ),
             )
             project.messageBus.syncPublisher(RrUiRefresh.TOPIC).refresh()
+            return decision
         }
     }
 }

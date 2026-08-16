@@ -72,7 +72,7 @@ class RrToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) {
             } else {
                 sessions.joinToString("  |  ") { session ->
                     val spring = LateAttachNotes.springInactive(session.handshake.notes)
-                    val suffix = if (spring != null) "  PARTIAL $spring" else ""
+                    val suffix = if (spring != null) "  ${LateAttachNotes.toolWindowText(spring)}" else ""
                     "pid ${session.pid}  ${session.backend}  ${session.handshake.version}$suffix"
                 }
             }

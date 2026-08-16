@@ -28,6 +28,10 @@ class RrSession(
     var connected: Boolean = false
         private set
 
+    @Volatile
+    var closed: Boolean = false
+        private set
+
     fun connect(): RrAgentClient {
         val existing = client
         if (existing != null && connected) {
@@ -56,6 +60,7 @@ class RrSession(
     }
 
     fun close() {
+        closed = true
         connected = false
         try {
             client?.close()

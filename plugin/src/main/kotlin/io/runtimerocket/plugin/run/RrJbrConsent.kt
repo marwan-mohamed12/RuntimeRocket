@@ -5,7 +5,7 @@ import com.intellij.execution.configurations.RunProfile
 import io.runtimerocket.plugin.settings.RrProjectSettings
 import java.nio.file.Path
 
-/** One-time per-project JBR offer (KD13). Never writes a run-config JRE unless the user consents. */
+/** One-time per-project JBR offer. Never writes a run-config JRE unless the user consents. */
 object RrJbrConsent {
     const val ACTION_TEXT = "Use bundled JetBrains Runtime for this configuration"
     const val DIALOG_TITLE = "RuntimeRocket"

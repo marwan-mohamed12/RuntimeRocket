@@ -26,9 +26,14 @@ class LateAttachNotesTest {
         val notes = LateAttachNotes.collect(handshake = handshake)
         val found = LateAttachNotes.springInactive(notes)
         assertEquals(LateAttachNotes.SPRING_INACTIVE_DETAIL, found)
-        assertTrue(LateAttachNotes.balloonText(found!!).contains("Spring adapter inactive"))
-        assertTrue(LateAttachNotes.toolWindowText(found).startsWith("PARTIAL"))
-        assertTrue(LateAttachNotes.toolWindowText(found).contains(found))
+        val decision = LateAttachNotes.displayDecision(handshake)
+        assertNotNull(decision)
+        assertEquals(ReloadResult.PARTIAL, decision!!.status)
+        assertEquals(LateAttachNotes.SPRING_INACTIVE_DETAIL, decision.balloon)
+        assertEquals(LateAttachNotes.SPRING_INACTIVE_DETAIL, decision.historyMessage)
+        assertTrue(decision.toolWindowLine.startsWith("PARTIAL"))
+        assertTrue(decision.toolWindowLine.contains(LateAttachNotes.SPRING_INACTIVE_MARKER))
+        assertEquals(LateAttachNotes.toolWindowText(found!!), decision.toolWindowLine)
     }
 
     @Test
@@ -67,5 +72,24 @@ class LateAttachNotesTest {
         val doc = HandshakeDocument.parse(json)
         assertEquals(listOf(LateAttachNotes.SPRING_INACTIVE_DETAIL), doc.notes)
         assertNotNull(LateAttachNotes.springInactive(doc.notes))
+        val decision = LateAttachNotes.displayDecision(doc)
+        assertNotNull(decision)
+        assertEquals(ReloadResult.PARTIAL, decision!!.status)
+        assertEquals(doc.notes.single(), decision.historyMessage)
+    }
+
+    @Test
+    fun displayDecisionIsNullWhenNoteMissing() {
+        val handshake =
+            HandshakeDocument(
+                pid = 1,
+                port = 2,
+                token = "t",
+                backend = "enhanced",
+                capabilities = listOf("METHOD_BODY"),
+                version = "0.1.0-SNAPSHOT",
+                startedAt = Instant.parse("2026-08-15T12:00:00Z"),
+            )
+        assertNull(LateAttachNotes.displayDecision(handshake))
     }
 }

@@ -1,1 +1,2 @@
 io.runtimerocket.agent.spi.NoOpFrameworkAdapter
+io.runtimerocket.agent.spi.LateAttachPartialAdapter
