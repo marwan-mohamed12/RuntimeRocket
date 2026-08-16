@@ -383,19 +383,22 @@ public final class ReloadOrchestrator {
         return names;
     }
 
-    private static String primaryUnsupportedKind(ClassDelta delta) {
+    private String primaryUnsupportedKind(ClassDelta delta) {
         if (delta.anonymousIndexShiftLikely) {
             return "anonymous-index-shift";
         }
+        List<String> capabilities = backend.capabilityNames();
+        ChangeKind first = null;
         for (ChangeKind kind : delta.kinds) {
-            if (kind != ChangeKind.METHOD_BODY
-                    && kind != ChangeKind.CONSTANT_POOL_ONLY
-                    && kind != ChangeKind.NEW_TYPE) {
+            if (first == null) {
+                first = kind;
+            }
+            if (capabilities == null || !capabilities.contains(kind.name())) {
                 return kind.name();
             }
         }
-        if (!delta.kinds.isEmpty()) {
-            return delta.kinds.iterator().next().name();
+        if (first != null) {
+            return first.name();
         }
         return "UNSUPPORTED";
     }

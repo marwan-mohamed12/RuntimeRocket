@@ -81,8 +81,6 @@ public final class EnhancedHotSwapBackend implements ReloadBackend {
             if (probeResult != null) {
                 return probeResult;
             }
-            jetbrainsVmHint();
-            enhancedFlagHint();
             if (!inst.isRedefineClassesSupported()) {
                 probeResult = false;
                 return false;
@@ -92,12 +90,12 @@ public final class EnhancedHotSwapBackend implements ReloadBackend {
         }
     }
 
-    static boolean jetbrainsVmHint() {
+    public static boolean jetbrainsVmHint() {
         return containsJetBrains(System.getProperty("java.vm.name"))
                 || containsJetBrains(System.getProperty("java.vm.vendor"));
     }
 
-    static boolean enhancedFlagHint() {
+    public static boolean enhancedFlagHint() {
         for (String arg : ManagementFactory.getRuntimeMXBean().getInputArguments()) {
             if (arg != null && arg.contains("-XX:+AllowEnhancedClassRedefinition")) {
                 return true;

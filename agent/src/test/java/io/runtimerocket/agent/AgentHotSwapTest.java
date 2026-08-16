@@ -1,5 +1,12 @@
 package io.runtimerocket.agent;
 
+import io.runtimerocket.agent.config.WatchDirs;
+import io.runtimerocket.agent.reload.ChangeKind;
+import io.runtimerocket.agent.reload.ClassDelta;
+import io.runtimerocket.agent.reload.ClassDeltaClassifier;
+import io.runtimerocket.agent.reload.ClassIndex;
+import io.runtimerocket.agent.reload.EnhancedHotSwapBackend;
+import io.runtimerocket.agent.reload.ReloadOrchestrator;
 import io.runtimerocket.protocol.ClassOutcome;
 import io.runtimerocket.protocol.ClassPayload;
 import io.runtimerocket.protocol.ReloadRequest;
@@ -75,6 +82,34 @@ class AgentHotSwapTest {
             assertEquals("duplicate", second.classes.get(0).reason);
         }
         assertEquals(2, TestClasses.invokeValue(type, instance));
+    }
+
+    @Test
+    void enhancedEnumRejectReportsEnumConstantsNotAddField() {
+        String name = TestClasses.uniqueBinary("Color");
+        byte[] before = TestClasses.enumClass(name, "RED");
+        byte[] after = TestClasses.enumClass(name, "RED", "BLUE");
+        ClassDelta delta = new ClassDeltaClassifier().classify(before, after);
+        assertTrue(delta.kinds.contains(ChangeKind.ENUM_CONSTANTS), delta.kinds.toString());
+        assertTrue(delta.kinds.contains(ChangeKind.ADD_FIELD), delta.kinds.toString());
+
+        EnhancedHotSwapBackend backend = new EnhancedHotSwapBackend();
+        ClassIndex index = new ClassIndex(AgentTestSupport.instrumentation());
+        Class<?> type = TestClasses.define(getClass().getClassLoader(), name, before);
+        index.recordClass(type);
+        index.storeBytes(type.getClassLoader(), name, before);
+
+        ReloadOrchestrator orchestrator = new ReloadOrchestrator(
+                AgentTestSupport.instrumentation(),
+                backend,
+                index,
+                WatchDirs.of(List.of()),
+                null,
+                null);
+        ReloadResult result = orchestrator.reload(inline(name, after));
+        assertEquals(ReloadResult.RESTART_REQUIRED, result.status, result.message);
+        assertTrue(result.message.contains("ENUM_CONSTANTS"), result.message);
+        assertFalse(result.message.contains("ADD_FIELD"), result.message);
     }
 
     @Test

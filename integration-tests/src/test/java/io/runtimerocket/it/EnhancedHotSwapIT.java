@@ -45,7 +45,12 @@ class EnhancedHotSwapIT {
     static void installAgent() {
         inst = ByteBuddyAgent.install();
         backend = new EnhancedHotSwapBackend();
-        Assumptions.assumeTrue(backend.probe(inst), "enhanced redefine is not available on this JVM");
+        boolean probed = backend.probe(inst);
+        if (EnhancedHotSwapBackend.jetbrainsVmHint() && EnhancedHotSwapBackend.enhancedFlagHint()) {
+            assertTrue(probed, "JBR with -XX:+AllowEnhancedClassRedefinition must trial-redefine");
+        } else {
+            Assumptions.assumeTrue(probed, "enhanced redefine is not available on this JVM");
+        }
     }
 
     @Test

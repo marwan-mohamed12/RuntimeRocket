@@ -37,6 +37,50 @@ final class TestClasses {
         return writer.toByteArray();
     }
 
+    static byte[] enumClass(String binaryName, String... constants) {
+        String internal = binaryName.replace('.', '/');
+        ClassWriter writer = new ClassWriter(0);
+        writer.visit(
+                Opcodes.V17,
+                Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER | Opcodes.ACC_ENUM,
+                internal,
+                "Ljava/lang/Enum<L" + internal + ";>;",
+                "java/lang/Enum",
+                null);
+        for (String constant : constants) {
+            writer.visitField(
+                            Opcodes.ACC_PUBLIC
+                                    | Opcodes.ACC_STATIC
+                                    | Opcodes.ACC_FINAL
+                                    | Opcodes.ACC_ENUM,
+                            constant,
+                            "L" + internal + ";",
+                            null,
+                            null)
+                    .visitEnd();
+        }
+        writer.visitField(
+                        Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL | Opcodes.ACC_SYNTHETIC,
+                        "$VALUES",
+                        "[L" + internal + ";",
+                        null,
+                        null)
+                .visitEnd();
+        MethodVisitor init =
+                writer.visitMethod(Opcodes.ACC_PRIVATE, "<init>", "(Ljava/lang/String;I)V", null, null);
+        init.visitCode();
+        init.visitVarInsn(Opcodes.ALOAD, 0);
+        init.visitVarInsn(Opcodes.ALOAD, 1);
+        init.visitVarInsn(Opcodes.ILOAD, 2);
+        init.visitMethodInsn(
+                Opcodes.INVOKESPECIAL, "java/lang/Enum", "<init>", "(Ljava/lang/String;I)V", false);
+        init.visitInsn(Opcodes.RETURN);
+        init.visitMaxs(3, 3);
+        init.visitEnd();
+        writer.visitEnd();
+        return writer.toByteArray();
+    }
+
     static byte[] optionalExtraMethod(String binaryName, boolean extra) {
         String internal = binaryName.replace('.', '/');
         ClassWriter writer = new ClassWriter(0);
