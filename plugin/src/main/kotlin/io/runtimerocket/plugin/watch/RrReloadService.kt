@@ -2,6 +2,7 @@ package io.runtimerocket.plugin.watch
 
 import com.intellij.compiler.server.BuildManagerListener
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.compiler.CompileContext
 import com.intellij.openapi.compiler.CompilerManager
 import com.intellij.openapi.components.Service
@@ -308,7 +309,9 @@ class RrReloadService(private val project: Project) {
 
     private fun currentLocated(context: CompileContext?): ModuleOutputLocator.LocatedOutputs {
         val includeTests = RrProjectSettings.getInstance(project).includeTests
-        return ModuleOutputLocator.locate(project, context, includeTests)
+        return ReadAction.compute<ModuleOutputLocator.LocatedOutputs, RuntimeException> {
+            ModuleOutputLocator.locate(project, context, includeTests)
+        }
     }
 
     private fun noteMissing(located: ModuleOutputLocator.LocatedOutputs) {

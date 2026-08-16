@@ -1,9 +1,44 @@
 # RuntimeRocket user guide
 
-Day-to-day use of **0.1.0-SNAPSHOT**. Build and install steps are in the
-[README](../README.md). Architecture and the full support matrix are in
-[docs/design.md](design.md). `runtimerocket.xml` schema is in
-[docs/runtimerocket-xml.md](runtimerocket-xml.md).
+Day-to-day use of **0.1.0-SNAPSHOT**. Architecture and the full support
+matrix are in [design.md](design.md). `runtimerocket.xml` schema is in
+[runtimerocket-xml.md](runtimerocket-xml.md).
+
+## Install into IntelliJ
+
+0.1.0 is **not** on the JetBrains Marketplace. You install a zip from this
+repo into IntelliJ IDEA **2024.3–2026.2** (Community or Ultimate).
+
+### Build the zip
+
+```powershell
+.\gradlew.bat :plugin:buildPlugin
+```
+
+```bash
+./gradlew :plugin:buildPlugin
+```
+
+Output: `plugin/build/distributions/plugin-0.1.0-SNAPSHOT.zip`.
+
+### Install from disk
+
+1. Open IntelliJ.
+2. **File | Settings** (macOS: **IntelliJ IDEA | Settings**).
+3. **Plugins** → gear → **Install Plugin from Disk…**
+4. Choose `plugin/build/distributions/plugin-0.1.0-SNAPSHOT.zip`.
+5. Restart the IDE when prompted.
+
+**Settings | Plugins | Installed** should then list **RuntimeRocket**.
+
+To try the plugin without changing your main IDE:
+
+```powershell
+.\gradlew.bat :plugin:runIde
+```
+
+Build details and the same walkthrough live in the
+[README](../README.md#install-the-plugin-into-intellij).
 
 ## Flow-state UX
 
@@ -95,20 +130,29 @@ Restart.
 
 ## Enable on a run configuration
 
-1. **Settings | Tools | RuntimeRocket** — project-level enable, auto-reload
-   on successful compile, include test output (off), prefer enhanced, log
-   level.
-2. **Application** / **Jar Application** run configuration → **RuntimeRocket**
-   tab → **Enable RuntimeRocket**. New Application configs default to on
-   once the project setting is enabled.
+1. **Settings | Tools | RuntimeRocket** — leave **Enable RuntimeRocket**
+   checked. Keep **Reload after a successful compile** on. Leave **Include
+   test output** off unless you want JUnit reloads. Prefer enhanced and
+   set the agent log level here.
+2. **Run | Edit Configurations…** → **Application** / **Jar Application**
+   → **RuntimeRocket** tab → keep **Enable RuntimeRocket** checked. New
+   Application configs default to on once the project setting is enabled.
 3. IntelliJ Ultimate + Spring Boot plugin: the same checkbox on **Spring Boot**
    run configurations.
 4. Use JetBrains Runtime as the JRE for add-method / add-field. On first
    limited-JDK run the plugin offers **Use bundled JetBrains Runtime**
    (one consent dialog; it never swaps the JRE silently).
-5. Run. Widget: `RR ● enhanced` or `RR ● standard`.
+5. **Run** or **Debug**. Status bar: `RR … waiting for agent`, then
+   `RR ● enhanced` or `RR ● standard`.
+6. Change a Java method, **Build | Build Project**. Status bar:
+   `RR ✓ … ms`. Click it to open **View | Tool Windows | RuntimeRocket**.
+
+`RR ○ not attached` means the process never got `-javaagent` (wrong
+run-configuration type, or a forked Gradle JVM). Compiling does not reload.
 
 JUnit is not patched unless **Include test output** is on.
+`hybrisserver` / Gradle `bootRun` / `JavaExec` are not patched — pass
+`-javaagent` yourself or use **Tools | Attach RuntimeRocket**.
 
 ## Attach RuntimeRocket (late attach)
 
