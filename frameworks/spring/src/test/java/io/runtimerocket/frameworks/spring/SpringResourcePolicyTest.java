@@ -35,6 +35,19 @@ class SpringResourcePolicyTest {
         assertEquals(SpringAdapter.STATIC_DETAIL, outcome.detail);
     }
 
+    @Test
+    void mixedStaticAndUnknownIsNotStaticOnDisk() {
+        SpringAdapter adapter = new SpringAdapter();
+        ResourceChangeEvent event = new ResourceChangeEvent(
+                SpringTestSupport.context(false),
+                List.of(
+                        new ResourceChangeEvent.ChangedResource("static/app.js", "/tmp/static/app.js", "b".repeat(64)),
+                        new ResourceChangeEvent.ChangedResource("ehcache.xml", "/tmp/ehcache.xml", "c".repeat(64))));
+        AdapterOutcome outcome = adapter.onResourcesChanged(event);
+        assertEquals(AdapterOutcome.SUCCESS, outcome.status);
+        assertEquals(null, outcome.detail);
+    }
+
     private static ResourceChangeEvent event(String classpathName, String sha) {
         return new ResourceChangeEvent(
                 SpringTestSupport.context(false),

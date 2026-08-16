@@ -10,26 +10,39 @@ import org.objectweb.asm.Opcodes;
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SpringHookTransformerTest {
 
     @Test
-    void insertsTrackerCallsOnContextAndFactory() {
+    void insertsTrackerCallsOnContextMethods() {
         SpringHookTransformer transformer = new SpringHookTransformer();
+        byte[] original = contextBytes();
         byte[] ctx = transformer.transform(
                 null,
                 SpringHookTransformer.ABSTRACT_APP_CTX,
                 null,
                 null,
-                contextBytes());
+                original);
         assertTrue(invokes(ctx, "register", "finishRefresh"));
         assertTrue(invokes(ctx, "register", "getBean"));
         assertTrue(invokes(ctx, "register", "isActive"));
+        assertNull(transformer.transform(null, SpringHookTransformer.ABSTRACT_APP_CTX, null, null, ctx));
+    }
 
-        byte[] factory = transformer.transform(
-                null, SpringHookTransformer.DLBF, null, null, factoryBytes());
-        assertTrue(invokes(factory, "snapshotBeanNames", "preInstantiateSingletons"));
+    @Test
+    void skipsRuntimeRocketPackages() {
+        SpringHookTransformer transformer = new SpringHookTransformer();
+        byte[] payload = contextBytes();
+        assertNull(transformer.transform(null, "io/runtimerocket/frameworks/spring/SpringAdapter", null, null, payload));
+        assertNull(
+                transformer.transform(
+                        null,
+                        "io/runtimerocket/frameworks/spring/internal/SpringRefreshHelper",
+                        null,
+                        null,
+                        payload));
     }
 
     private static boolean invokes(byte[] bytes, String trackerMethod, String ownerMethod) {
@@ -85,21 +98,6 @@ class SpringHookTransformerTest {
         isActive.visitInsn(Opcodes.IRETURN);
         isActive.visitMaxs(1, 1);
         isActive.visitEnd();
-        writer.visitEnd();
-        return writer.toByteArray();
-    }
-
-    private static byte[] factoryBytes() {
-        ClassWriter writer = new ClassWriter(0);
-        writer.visit(
-                Opcodes.V17,
-                Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER,
-                SpringHookTransformer.DLBF,
-                null,
-                "java/lang/Object",
-                null);
-        emptyCtor(writer);
-        voidMethod(writer, "preInstantiateSingletons");
         writer.visitEnd();
         return writer.toByteArray();
     }

@@ -15,27 +15,28 @@ import java.util.function.Consumer;
 public final class SpringContextTracker {
 
     private static final CopyOnWriteArrayList<WeakReference<Object>> CONTEXTS = new CopyOnWriteArrayList<>();
-    private static final AtomicReference<Object> LAST = new AtomicReference<>();
+    private static final AtomicReference<WeakReference<Object>> LAST = new AtomicReference<>();
     private static final AtomicReference<Consumer<Object>> LISTENER = new AtomicReference<>();
 
     private SpringContextTracker() {}
 
     public static void register(Object context) {
-        if (context == null) {
+        if (context == null || !isApplicationContext(context)) {
             return;
         }
-        if (LAST.get() == context) {
+        WeakReference<Object> lastRef = LAST.get();
+        if (lastRef != null && lastRef.get() == context) {
             return;
         }
         for (WeakReference<Object> ref : CONTEXTS) {
             if (ref.get() == context) {
-                LAST.set(context);
+                LAST.set(new WeakReference<>(context));
                 return;
             }
         }
         purge();
         CONTEXTS.add(new WeakReference<>(context));
-        LAST.set(context);
+        LAST.set(new WeakReference<>(context));
         Consumer<Object> listener = LISTENER.get();
         if (listener != null) {
             try {
@@ -43,13 +44,6 @@ public final class SpringContextTracker {
             } catch (RuntimeException ignored) {
                 // registration must never fail the application call
             }
-        }
-    }
-
-    /** Optional snapshot from {@code DefaultListableBeanFactory#preInstantiateSingletons}. */
-    public static void snapshotBeanNames(Object factory) {
-        if (factory != null) {
-            register(factory);
         }
     }
 
@@ -61,7 +55,7 @@ public final class SpringContextTracker {
         List<Object> live = new ArrayList<>();
         for (WeakReference<Object> ref : CONTEXTS) {
             Object ctx = ref.get();
-            if (ctx != null && !live.contains(ctx)) {
+            if (ctx != null && isApplicationContext(ctx) && !live.contains(ctx)) {
                 live.add(ctx);
             }
         }
@@ -93,18 +87,47 @@ public final class SpringContextTracker {
         if (!stale.isEmpty()) {
             CONTEXTS.removeAll(stale);
         }
-        Object last = LAST.get();
-        if (last != null) {
-            boolean found = false;
-            for (WeakReference<Object> ref : CONTEXTS) {
-                if (ref.get() == last) {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                LAST.compareAndSet(last, null);
+        WeakReference<Object> lastRef = LAST.get();
+        Object last = lastRef == null ? null : lastRef.get();
+        if (last == null) {
+            LAST.compareAndSet(lastRef, null);
+            return;
+        }
+        boolean found = false;
+        for (WeakReference<Object> ref : CONTEXTS) {
+            if (ref.get() == last) {
+                found = true;
+                break;
             }
         }
+        if (!found) {
+            LAST.compareAndSet(lastRef, null);
+        }
+    }
+
+    static boolean isApplicationContext(Object value) {
+        if (value == null) {
+            return false;
+        }
+        for (Class<?> type = value.getClass(); type != null; type = type.getSuperclass()) {
+            if (isApplicationContextName(type.getName()) || hasApplicationContextInterface(type)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasApplicationContextInterface(Class<?> type) {
+        for (Class<?> iface : type.getInterfaces()) {
+            if (isApplicationContextName(iface.getName()) || hasApplicationContextInterface(iface)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isApplicationContextName(String name) {
+        return "org.springframework.context.ApplicationContext".equals(name)
+                || "org.springframework.context.ConfigurableApplicationContext".equals(name);
     }
 }

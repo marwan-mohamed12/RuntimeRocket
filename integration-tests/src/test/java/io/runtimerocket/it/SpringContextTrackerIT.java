@@ -29,6 +29,7 @@ import org.springframework.core.SpringVersion;
 import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -85,12 +86,15 @@ class SpringContextTrackerIT {
         context = FixtureApp.run();
         assertTrue(SpringContextTracker.isEmpty());
 
+        long started = System.nanoTime();
         startAgent(true);
+        long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started);
         Handshake handshake = HandshakeFile.read(AgentRuntime.get().handshakePath());
         assertTrue(
                 handshake.notes.contains(SpringAdapter.INACTIVE_DETAIL),
                 String.valueOf(handshake.notes));
         assertTrue(SpringContextTracker.isEmpty());
+        assertTrue(elapsedMs < 500L, "late attach must not wait 2s: " + elapsedMs + "ms");
     }
 
     private static void startAgent(boolean late) {

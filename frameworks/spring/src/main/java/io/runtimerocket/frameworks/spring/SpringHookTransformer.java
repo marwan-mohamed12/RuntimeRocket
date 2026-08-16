@@ -16,7 +16,6 @@ import java.security.ProtectionDomain;
 public final class SpringHookTransformer implements ClassFileTransformer {
 
     static final String ABSTRACT_APP_CTX = "org/springframework/context/support/AbstractApplicationContext";
-    static final String DLBF = "org/springframework/beans/factory/support/DefaultListableBeanFactory";
     static final String TRACKER = "io/runtimerocket/frameworks/spring/SpringContextTracker";
 
     @Override
@@ -30,15 +29,12 @@ public final class SpringHookTransformer implements ClassFileTransformer {
             return null;
         }
         if (ABSTRACT_APP_CTX.equals(className)) {
-            return hook(classfileBuffer, true);
-        }
-        if (DLBF.equals(className)) {
-            return hook(classfileBuffer, false);
+            return hook(classfileBuffer);
         }
         return null;
     }
 
-    private static byte[] hook(byte[] classfileBuffer, boolean applicationContext) {
+    private static byte[] hook(byte[] classfileBuffer) {
         ClassReader reader = new ClassReader(classfileBuffer);
         if (alreadyHooked(reader)) {
             return null;
@@ -60,7 +56,7 @@ public final class SpringHookTransformer implements ClassFileTransformer {
                         }
                     }
                 };
-        reader.accept(new HookVisitor(writer, applicationContext), ClassReader.EXPAND_FRAMES);
+        reader.accept(new HookVisitor(writer), ClassReader.EXPAND_FRAMES);
         return writer.toByteArray();
     }
 
@@ -77,7 +73,7 @@ public final class SpringHookTransformer implements ClassFileTransformer {
                                     int opcode, String owner, String methodName, String methodDesc, boolean isInterface) {
                                 if (opcode == Opcodes.INVOKESTATIC
                                         && TRACKER.equals(owner)
-                                        && ("register".equals(methodName) || "snapshotBeanNames".equals(methodName))) {
+                                        && "register".equals(methodName)) {
                                     found[0] = true;
                                 }
                             }
@@ -89,11 +85,9 @@ public final class SpringHookTransformer implements ClassFileTransformer {
     }
 
     private static final class HookVisitor extends ClassVisitor {
-        private final boolean applicationContext;
 
-        HookVisitor(ClassVisitor parent, boolean applicationContext) {
+        HookVisitor(ClassVisitor parent) {
             super(Opcodes.ASM9, parent);
-            this.applicationContext = applicationContext;
         }
 
         @Override
@@ -103,18 +97,14 @@ public final class SpringHookTransformer implements ClassFileTransformer {
             if (mv == null) {
                 return null;
             }
-            if (applicationContext) {
-                if ("finishRefresh".equals(name) && "()V".equals(descriptor)) {
-                    return new InsertBeforeReturn(mv, "register");
-                }
-                if ("getBean".equals(name) && "(Ljava/lang/String;)Ljava/lang/Object;".equals(descriptor)) {
-                    return new InsertAtStart(mv, "register");
-                }
-                if ("isActive".equals(name) && "()Z".equals(descriptor)) {
-                    return new InsertAtStart(mv, "register");
-                }
-            } else if ("preInstantiateSingletons".equals(name) && "()V".equals(descriptor)) {
-                return new InsertAtStart(mv, "snapshotBeanNames");
+            if ("finishRefresh".equals(name) && "()V".equals(descriptor)) {
+                return new InsertBeforeReturn(mv, "register");
+            }
+            if ("getBean".equals(name) && "(Ljava/lang/String;)Ljava/lang/Object;".equals(descriptor)) {
+                return new InsertAtStart(mv, "register");
+            }
+            if ("isActive".equals(name) && "()Z".equals(descriptor)) {
+                return new InsertAtStart(mv, "register");
             }
             return mv;
         }

@@ -48,9 +48,6 @@ public final class SpringAdapter implements FrameworkAdapter {
         if (!SpringEnvironment.springPresent(appLoader)) {
             return false;
         }
-        if (SpringEnvironment.devToolsActive(appLoader)) {
-            return false;
-        }
         return !refuse;
     }
 
@@ -88,11 +85,11 @@ public final class SpringAdapter implements FrameworkAdapter {
             retransformSpring(inst, ctx);
         }
         ClassLoader[] loaders = ctx == null ? new ClassLoader[0] : ctx.applicationLoaders();
-        if (SpringEnvironment.webFluxOrAot(loaders, inst)) {
-            return new AdapterOutcome(ID, AdapterOutcome.PARTIAL, 0L, WEBFLUX_AOT_DETAIL);
-        }
         for (Object discovered : SpringContextFinder.probe(loaders, inst)) {
             SpringContextTracker.register(discovered);
+        }
+        if (SpringEnvironment.webFluxOrAot(loaders, SpringContextTracker.liveContexts())) {
+            return new AdapterOutcome(ID, AdapterOutcome.PARTIAL, 0L, WEBFLUX_AOT_DETAIL);
         }
         if (SpringContextTracker.isEmpty()) {
             return new AdapterOutcome(ID, AdapterOutcome.PARTIAL, 0L, INACTIVE_DETAIL);
@@ -136,16 +133,16 @@ public final class SpringAdapter implements FrameworkAdapter {
         if (event == null || event.resources == null || event.resources.isEmpty()) {
             return AdapterOutcome.ok(ID);
         }
-        boolean staticOnly = false;
+        boolean allStatic = true;
         for (ResourceChangeEvent.ChangedResource resource : event.resources) {
             if (SpringResourcePolicy.isBootConfig(resource)) {
                 return new AdapterOutcome(ID, AdapterOutcome.RESTART_REQUIRED, 0L, CONFIG_CHANGED_DETAIL);
             }
-            if (SpringResourcePolicy.isStatic(resource)) {
-                staticOnly = true;
+            if (!SpringResourcePolicy.isStatic(resource)) {
+                allStatic = false;
             }
         }
-        if (staticOnly) {
+        if (allStatic) {
             return new AdapterOutcome(ID, AdapterOutcome.SUCCESS, 0L, STATIC_DETAIL);
         }
         return AdapterOutcome.ok(ID);
@@ -206,8 +203,7 @@ public final class SpringAdapter implements FrameworkAdapter {
             if (name.startsWith("io.runtimerocket.")) {
                 continue;
             }
-            if ("org.springframework.context.support.AbstractApplicationContext".equals(name)
-                    || "org.springframework.beans.factory.support.DefaultListableBeanFactory".equals(name)) {
+            if ("org.springframework.context.support.AbstractApplicationContext".equals(name)) {
                 if (inst.isModifiableClass(loaded)) {
                     targets.add(loaded);
                 }

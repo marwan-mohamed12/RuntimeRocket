@@ -14,6 +14,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.ResourceAccessMode;
 import org.junit.jupiter.api.parallel.ResourceLock;
+import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.support.GenericApplicationContext;
 
@@ -23,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ResourceLock(value = "runtimerocket-spring", mode = ResourceAccessMode.READ_WRITE)
 class SpringBeanReloadTest {
@@ -62,6 +64,23 @@ class SpringBeanReloadTest {
         assertNotNull(bean);
         assertEquals("ok", invokePing(bean));
         assertSame(before, context.getBean(ExistingBean.class));
+    }
+
+    @Test
+    void factoryOnlyRegistrationDoesNotSucceedStereotypeReload() {
+        DefaultListableBeanFactory factory = new DefaultListableBeanFactory();
+        SpringContextTracker.register(factory);
+        assertTrue(SpringContextTracker.isEmpty());
+
+        String name = SpringTestSupport.unique("OrphanService");
+        Class<?> added = SpringTestSupport.defineService(getClass().getClassLoader(), name);
+        AdapterOutcome outcome = adapter.onClassesReloaded(new ClassReloadEvent(
+                SpringTestSupport.context(false),
+                List.of(new ReloadedClass(name, added, List.of("NEW_TYPE"))),
+                "standard",
+                Capabilities.none()));
+        assertEquals(AdapterOutcome.PARTIAL, outcome.status);
+        assertEquals(SpringAdapter.INACTIVE_DETAIL, outcome.detail);
     }
 
     @Test
