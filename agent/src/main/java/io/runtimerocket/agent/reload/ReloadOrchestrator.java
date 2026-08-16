@@ -2,7 +2,12 @@ package io.runtimerocket.agent.reload;
 
 import io.runtimerocket.agent.AgentLog;
 import io.runtimerocket.agent.config.WatchDirs;
+import io.runtimerocket.agent.spi.Capabilities;
+import io.runtimerocket.agent.spi.ClassReloadEvent;
+import io.runtimerocket.agent.spi.ReloadedClass;
+import io.runtimerocket.agent.spi.ResourceChangeEvent;
 import io.runtimerocket.agent.watch.ClassPathWatcher;
+import io.runtimerocket.protocol.AdapterOutcome;
 import io.runtimerocket.protocol.ClassOutcome;
 import io.runtimerocket.protocol.ClassPayload;
 import io.runtimerocket.protocol.ReloadRequest;
@@ -43,6 +48,8 @@ public final class ReloadOrchestrator {
     private final WatchDirs watchDirs;
     private final ClassPathWatcher watcher;
     private final AgentLog log;
+    private final AdapterHost adapters;
+    private final AgentAdapterContext adapterContext;
     private final ReentrantLock lock = new ReentrantLock();
     private final ConcurrentHashMap<ClassKey, Long> recentKeys = new ConcurrentHashMap<>();
 
@@ -53,12 +60,26 @@ public final class ReloadOrchestrator {
             WatchDirs watchDirs,
             ClassPathWatcher watcher,
             AgentLog log) {
+        this(inst, backend, index, watchDirs, watcher, log, AdapterHost.none(), false);
+    }
+
+    public ReloadOrchestrator(
+            Instrumentation inst,
+            ReloadBackend backend,
+            ClassIndex index,
+            WatchDirs watchDirs,
+            ClassPathWatcher watcher,
+            AgentLog log,
+            AdapterHost adapters,
+            boolean lateAttach) {
         this.inst = Objects.requireNonNull(inst, "inst");
         this.backend = Objects.requireNonNull(backend, "backend");
         this.index = Objects.requireNonNull(index, "index");
         this.watchDirs = watchDirs == null ? WatchDirs.of(List.of()) : watchDirs;
         this.watcher = watcher;
         this.log = log;
+        this.adapters = adapters == null ? AdapterHost.none() : adapters;
+        this.adapterContext = new AgentAdapterContext(this.index, lateAttach, log);
     }
 
     public ReloadResult reload(ReloadRequest request) {
@@ -206,14 +227,19 @@ public final class ReloadOrchestrator {
                     item.bytes);
         }
 
+        List<AdapterOutcome> adapterOutcomes = notifyAdapters(prepared, resources);
+        String status = AdapterHost.softFailed(adapterOutcomes) ? ReloadResult.PARTIAL : ReloadResult.SUCCESS;
+        String message = ReloadResult.PARTIAL.equals(status) ? AdapterHost.firstFailureDetail(adapterOutcomes) : null;
         if (log != null) {
-            log.info("reload SUCCESS "
+            log.info("reload "
+                    + status
+                    + " "
                     + prepared.size()
                     + " classes "
                     + (System.currentTimeMillis() - t0)
                     + "ms");
         }
-        return result(ReloadResult.SUCCESS, t0, outcomes, null);
+        return result(status, t0, outcomes, adapterOutcomes, message);
     }
 
     private Prepared prepare(ResolvedClass rc) {
@@ -403,12 +429,66 @@ public final class ReloadOrchestrator {
         return "UNSUPPORTED";
     }
 
+    private List<AdapterOutcome> notifyAdapters(List<Prepared> prepared, List<ResourcePayload> resources) {
+        List<AdapterOutcome> outcomes = new ArrayList<>();
+        if (!prepared.isEmpty()) {
+            for (Prepared item : prepared) {
+                if (item.definedClass != null) {
+                    adapters.onNewClass(item.definedClass);
+                }
+            }
+            outcomes.addAll(adapters.onClassesReloaded(classReloadEvent(prepared)));
+        }
+        if (resources != null && !resources.isEmpty()) {
+            outcomes.addAll(adapters.onResourcesChanged(resourceEvent(resources)));
+        }
+        return outcomes;
+    }
+
+    private ClassReloadEvent classReloadEvent(List<Prepared> prepared) {
+        List<ReloadedClass> classes = new ArrayList<>();
+        for (Prepared item : prepared) {
+            List<String> kinds = kindNames(item.delta);
+            if (item.definedClass != null) {
+                classes.add(new ReloadedClass(item.binaryName, item.definedClass, kinds));
+                continue;
+            }
+            for (Class<?> loaded : item.loaded) {
+                classes.add(new ReloadedClass(item.binaryName, loaded, kinds));
+            }
+        }
+        return new ClassReloadEvent(
+                adapterContext,
+                classes,
+                backend.id(),
+                Capabilities.fromNames(backend.capabilityNames()));
+    }
+
+    private ResourceChangeEvent resourceEvent(List<ResourcePayload> resources) {
+        List<ResourceChangeEvent.ChangedResource> changed = new ArrayList<>(resources.size());
+        for (ResourcePayload resource : resources) {
+            changed.add(
+                    new ResourceChangeEvent.ChangedResource(
+                            resource.classpathName, resource.path, resource.sha256));
+        }
+        return new ResourceChangeEvent(adapterContext, changed);
+    }
+
     private ReloadResult result(String status, long startedMs, List<ClassOutcome> classes, String message) {
+        return result(status, startedMs, classes, List.of(), message);
+    }
+
+    private ReloadResult result(
+            String status,
+            long startedMs,
+            List<ClassOutcome> classes,
+            List<AdapterOutcome> adapters,
+            String message) {
         ReloadResult result = new ReloadResult();
         result.status = status;
         result.durationMs = Math.max(0L, System.currentTimeMillis() - startedMs);
         result.classes = classes;
-        result.adapters = List.of();
+        result.adapters = adapters == null ? List.of() : adapters;
         result.message = message;
         return result;
     }

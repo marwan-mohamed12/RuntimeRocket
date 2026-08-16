@@ -8,11 +8,15 @@ import io.runtimerocket.agent.config.RocketXmlDocuments;
 import io.runtimerocket.agent.config.Tokens;
 import io.runtimerocket.agent.config.WatchDirs;
 import io.runtimerocket.agent.net.LoopbackServer;
+import io.runtimerocket.agent.reload.AdapterHost;
+import io.runtimerocket.agent.reload.AgentAdapterContext;
 import io.runtimerocket.agent.reload.BackendSelector;
 import io.runtimerocket.agent.reload.ClassIndex;
 import io.runtimerocket.agent.reload.ReloadBackend;
 import io.runtimerocket.agent.reload.ReloadOrchestrator;
+import io.runtimerocket.agent.spi.AdapterContext;
 import io.runtimerocket.agent.watch.ClassPathWatcher;
+import io.runtimerocket.protocol.AdapterOutcome;
 
 import java.io.IOException;
 import java.lang.instrument.Instrumentation;
@@ -38,6 +42,7 @@ public final class AgentRuntime {
     private ClassIndex classIndex;
     private ReloadOrchestrator orchestrator;
     private ReloadBackend backend;
+    private AdapterHost adapterHost;
     private ClassPathWatcher watcher;
     private RocketXmlDocuments rocketXml;
     private Thread shutdownHook;
@@ -101,8 +106,28 @@ public final class AgentRuntime {
         WatchDirs watchDirs = WatchDirs.of(new ArrayList<>(jail));
         this.watcher = new ClassPathWatcher(
                 options, log, classpathDirs, resourceDirs, rocketXml.packageFilter());
-        this.orchestrator = new ReloadOrchestrator(inst, backend, classIndex, watchDirs, watcher, log);
+        this.adapterHost =
+                AdapterHost.load(AgentRuntime.class.getClassLoader(), options.disabledAdapters, log);
+        AdapterContext adapterContext = new AgentAdapterContext(classIndex, lateAttach, log);
+        this.orchestrator =
+                new ReloadOrchestrator(
+                        inst, backend, classIndex, watchDirs, watcher, log, adapterHost, lateAttach);
         this.watcher.setHandler(orchestrator::reload);
+        adapterHost.onAgentStart(adapterContext);
+        if (lateAttach) {
+            for (AdapterOutcome outcome : adapterHost.onLateAttach(adapterContext)) {
+                if (outcome != null
+                        && outcome.status != null
+                        && !AdapterOutcome.SUCCESS.equals(outcome.status)
+                        && log != null) {
+                    log.warn("adapter "
+                            + outcome.adapterId
+                            + " late-attach "
+                            + outcome.status
+                            + (outcome.detail == null ? "" : " " + outcome.detail));
+                }
+            }
+        }
         this.server = new LoopbackServer(
                 token, backend.id(), backend.capabilityNames(), orchestrator, HandshakeFile.pathForPid(pid()), log);
         int bound = server.bind(options.port);
@@ -194,6 +219,12 @@ public final class AgentRuntime {
         }
     }
 
+    public AdapterHost adapterHost() {
+        synchronized (lock) {
+            return adapterHost;
+        }
+    }
+
     public ClassPathWatcher watcher() {
         synchronized (lock) {
             return watcher;
@@ -224,6 +255,7 @@ public final class AgentRuntime {
         if (watcher != null) {
             watcher.close();
         }
+        shutdownAdapters();
         if (server != null) {
             server.close();
         }
@@ -240,10 +272,17 @@ public final class AgentRuntime {
         if (watcher != null) {
             watcher.close();
         }
+        shutdownAdapters();
         uninstallIndex();
         HandshakeFile.deleteQuietly(handshakePath);
         rollbackFields();
         started = false;
+    }
+
+    private void shutdownAdapters() {
+        if (adapterHost != null) {
+            adapterHost.onAgentShutdown();
+        }
     }
 
     private void uninstallIndex() {
@@ -258,6 +297,7 @@ public final class AgentRuntime {
         orchestrator = null;
         classIndex = null;
         backend = null;
+        adapterHost = null;
         handshakePath = null;
         token = null;
         rocketXml = null;
