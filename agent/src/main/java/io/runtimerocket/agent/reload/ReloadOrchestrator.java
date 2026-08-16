@@ -79,7 +79,7 @@ public final class ReloadOrchestrator {
         this.watcher = watcher;
         this.log = log;
         this.adapters = adapters == null ? AdapterHost.none() : adapters;
-        this.adapterContext = new AgentAdapterContext(this.index, lateAttach, log);
+        this.adapterContext = new AgentAdapterContext(this.index, lateAttach, log, this.inst);
     }
 
     public ReloadResult reload(ReloadRequest request) {
@@ -228,8 +228,18 @@ public final class ReloadOrchestrator {
         }
 
         List<AdapterOutcome> adapterOutcomes = notifyAdapters(prepared, resources);
-        String status = AdapterHost.softFailed(adapterOutcomes) ? ReloadResult.PARTIAL : ReloadResult.SUCCESS;
-        String message = ReloadResult.PARTIAL.equals(status) ? AdapterHost.firstFailureDetail(adapterOutcomes) : null;
+        String status;
+        String message;
+        if (AdapterHost.restartRequired(adapterOutcomes)) {
+            status = ReloadResult.RESTART_REQUIRED;
+            message = AdapterHost.firstRestartDetail(adapterOutcomes);
+        } else if (AdapterHost.softFailed(adapterOutcomes)) {
+            status = ReloadResult.PARTIAL;
+            message = AdapterHost.firstFailureDetail(adapterOutcomes);
+        } else {
+            status = ReloadResult.SUCCESS;
+            message = null;
+        }
         if (log != null) {
             log.info("reload "
                     + status

@@ -16,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ShadowManifestTest {
 
@@ -32,6 +33,12 @@ class ShadowManifestTest {
             assertEquals("true", attrs.getValue("Can-Retransform-Classes"));
             assertEquals("RuntimeRocket Agent", attrs.getValue("Implementation-Title"));
             assertNull(attrs.getValue("Can-Set-Native-Method-Prefix"));
+            assertNotNull(jarFile.getJarEntry("io/runtimerocket/frameworks/spring/SpringAdapter.class"));
+            assertNotNull(jarFile.getJarEntry("io/runtimerocket/frameworks/spring/fw7/Fw7SpringRefreshHelper.class"));
+            JarEntry services = jarFile.getJarEntry("META-INF/services/io.runtimerocket.agent.spi.FrameworkAdapter");
+            assertNotNull(services);
+            String providers = new String(jarFile.getInputStream(services).readAllBytes());
+            assertTrue(providers.contains("io.runtimerocket.frameworks.spring.SpringAdapter"), providers);
             Enumeration<JarEntry> entries = jarFile.entries();
             while (entries.hasMoreElements()) {
                 String name = entries.nextElement().getName();

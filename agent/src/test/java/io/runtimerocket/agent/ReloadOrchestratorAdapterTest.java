@@ -120,6 +120,51 @@ class ReloadOrchestratorAdapterTest {
         assertEquals(AdapterOutcome.FAILED, result.adapters.get(0).status);
     }
 
+    @Test
+    void adapterRestartRequiredPromotesReloadResult() throws Exception {
+        Path file = temp.resolve("application.properties");
+        Files.writeString(file, "a=1");
+
+        AdapterHost host = new AdapterHost(List.of(), null);
+        host.register(new FrameworkAdapter() {
+            @Override
+            public String id() {
+                return "spring";
+            }
+
+            @Override
+            public int order() {
+                return 1;
+            }
+
+            @Override
+            public boolean isAvailable(ClassLoader appLoader) {
+                return true;
+            }
+
+            @Override
+            public AdapterOutcome onClassesReloaded(ClassReloadEvent event) {
+                return AdapterOutcome.ok(id());
+            }
+
+            @Override
+            public AdapterOutcome onResourcesChanged(io.runtimerocket.agent.spi.ResourceChangeEvent event) {
+                return new AdapterOutcome(id(), AdapterOutcome.RESTART_REQUIRED, 0L, "config changed — restart to apply");
+            }
+        });
+
+        ReloadOrchestrator orchestrator = orchestrator(
+                host, new ClassIndex(AgentTestSupport.instrumentation()), WatchDirs.of(List.of(temp)));
+
+        ReloadRequest request = new ReloadRequest();
+        request.byReference = false;
+        request.trigger = ReloadRequest.TRIGGER_MANUAL;
+        request.resources = List.of(new ResourcePayload("application.properties", file.toString(), null));
+        ReloadResult result = orchestrator.reload(request);
+        assertEquals(ReloadResult.RESTART_REQUIRED, result.status, result.message);
+        assertEquals("config changed — restart to apply", result.message);
+    }
+
     private static ReloadOrchestrator orchestrator(AdapterHost host, ClassIndex index, WatchDirs watchDirs) {
         return new ReloadOrchestrator(
                 AgentTestSupport.instrumentation(),

@@ -108,7 +108,7 @@ public final class AgentRuntime {
                 options, log, classpathDirs, resourceDirs, rocketXml.packageFilter());
         this.adapterHost =
                 AdapterHost.load(AgentRuntime.class.getClassLoader(), options.disabledAdapters, log);
-        AdapterContext adapterContext = new AgentAdapterContext(classIndex, lateAttach, log);
+        AdapterContext adapterContext = new AgentAdapterContext(classIndex, lateAttach, log, inst);
         this.orchestrator =
                 new ReloadOrchestrator(
                         inst, backend, classIndex, watchDirs, watcher, log, adapterHost, lateAttach);

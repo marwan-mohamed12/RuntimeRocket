@@ -10,7 +10,10 @@ java {
 
 dependencies {
     testImplementation(project(":agent"))
+    testImplementation(project(":frameworks:spring"))
     testImplementation(project(":fixtures:plain-java"))
+    testImplementation(project(":fixtures:spring-boot"))
+    testImplementation("org.springframework.boot:spring-boot-starter:${providers.gradleProperty("spring.boot.fw7.version").get()}")
     testImplementation(project(":fixtures:two-module:lib"))
     testImplementation(project(":fixtures:two-module:app"))
     testImplementation(platform("org.junit:junit-bom:${providers.gradleProperty("junit.version").get()}"))
@@ -25,7 +28,12 @@ val appClasses = project(":fixtures:two-module:app").layout.buildDirectory.dir("
 
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
-    dependsOn(":fixtures:two-module:lib:classes", ":fixtures:two-module:app:classes")
+    dependsOn(
+        ":fixtures:two-module:lib:classes",
+        ":fixtures:two-module:app:classes",
+        ":fixtures:spring-boot:classes",
+        ":frameworks:spring:classes",
+    )
     inputs.dir(libClasses)
     inputs.dir(appClasses)
     systemProperty("rr.fixture.lib.classes", libClasses.get().asFile.absolutePath)

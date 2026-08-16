@@ -3,6 +3,7 @@ package io.runtimerocket.agent.reload;
 import io.runtimerocket.agent.AgentLog;
 import io.runtimerocket.agent.spi.AdapterContext;
 
+import java.lang.instrument.Instrumentation;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -14,11 +15,17 @@ public final class AgentAdapterContext implements AdapterContext {
     private final ClassIndex index;
     private final boolean lateAttach;
     private final AgentLog log;
+    private final Instrumentation instrumentation;
 
     public AgentAdapterContext(ClassIndex index, boolean lateAttach, AgentLog log) {
+        this(index, lateAttach, log, null);
+    }
+
+    public AgentAdapterContext(ClassIndex index, boolean lateAttach, AgentLog log, Instrumentation instrumentation) {
         this.index = Objects.requireNonNull(index, "index");
         this.lateAttach = lateAttach;
         this.log = log;
+        this.instrumentation = instrumentation;
     }
 
     @Override
@@ -59,6 +66,9 @@ public final class AgentAdapterContext implements AdapterContext {
 
     @Override
     public <T> T peekService(Class<T> type) {
+        if (type == Instrumentation.class) {
+            return type.cast(instrumentation);
+        }
         return null;
     }
 }

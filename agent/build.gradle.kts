@@ -16,6 +16,7 @@ java {
 dependencies {
     api(project(":protocol"))
     api(project(":agent-api"))
+    implementation(project(":frameworks:spring"))
     implementation("org.ow2.asm:asm:${providers.gradleProperty("asm.version").get()}")
     testImplementation(platform("org.junit:junit-bom:${providers.gradleProperty("junit.version").get()}"))
     testImplementation("org.junit.jupiter:junit-jupiter")

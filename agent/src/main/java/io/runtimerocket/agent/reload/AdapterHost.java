@@ -130,7 +130,23 @@ public final class AdapterHost {
         }
     }
 
+    public static boolean restartRequired(List<AdapterOutcome> outcomes) {
+        return hasStatus(outcomes, AdapterOutcome.RESTART_REQUIRED);
+    }
+
     public static boolean softFailed(List<AdapterOutcome> outcomes) {
+        return hasStatus(outcomes, AdapterOutcome.FAILED, AdapterOutcome.PARTIAL);
+    }
+
+    public static String firstRestartDetail(List<AdapterOutcome> outcomes) {
+        return firstDetail(outcomes, AdapterOutcome.RESTART_REQUIRED);
+    }
+
+    public static String firstFailureDetail(List<AdapterOutcome> outcomes) {
+        return firstDetail(outcomes, AdapterOutcome.FAILED, AdapterOutcome.PARTIAL);
+    }
+
+    private static boolean hasStatus(List<AdapterOutcome> outcomes, String... statuses) {
         if (outcomes == null) {
             return false;
         }
@@ -138,14 +154,16 @@ public final class AdapterHost {
             if (outcome == null || outcome.status == null) {
                 continue;
             }
-            if (AdapterOutcome.FAILED.equals(outcome.status) || AdapterOutcome.PARTIAL.equals(outcome.status)) {
-                return true;
+            for (String status : statuses) {
+                if (status.equals(outcome.status)) {
+                    return true;
+                }
             }
         }
         return false;
     }
 
-    public static String firstFailureDetail(List<AdapterOutcome> outcomes) {
+    private static String firstDetail(List<AdapterOutcome> outcomes, String... statuses) {
         if (outcomes == null) {
             return null;
         }
@@ -153,7 +171,10 @@ public final class AdapterHost {
             if (outcome == null || outcome.status == null) {
                 continue;
             }
-            if (AdapterOutcome.FAILED.equals(outcome.status) || AdapterOutcome.PARTIAL.equals(outcome.status)) {
+            for (String status : statuses) {
+                if (!status.equals(outcome.status)) {
+                    continue;
+                }
                 if (outcome.detail != null && !outcome.detail.isBlank()) {
                     return outcome.detail;
                 }

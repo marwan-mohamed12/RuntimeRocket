@@ -26,6 +26,9 @@ class AdapterHostTest {
         assertTrue(
                 host.registered().stream().anyMatch(adapter -> NoOpFrameworkAdapter.ID.equals(adapter.id())),
                 host.registered().toString());
+        assertTrue(
+                host.registered().stream().anyMatch(adapter -> "spring".equals(adapter.id())),
+                host.registered().toString());
     }
 
     @Test
@@ -117,6 +120,12 @@ class AdapterHostTest {
                 new AdapterOutcome("b", AdapterOutcome.FAILED, 1L, "x"))));
         assertTrue(AdapterHost.softFailed(
                 List.of(new AdapterOutcome("c", AdapterOutcome.PARTIAL, 1L, "soft"))));
+        assertTrue(AdapterHost.restartRequired(
+                List.of(new AdapterOutcome("spring", AdapterOutcome.RESTART_REQUIRED, 1L, "config"))));
+        assertEquals(
+                "config",
+                AdapterHost.firstRestartDetail(
+                        List.of(new AdapterOutcome("spring", AdapterOutcome.RESTART_REQUIRED, 1L, "config"))));
     }
 
     private static ClassReloadEvent event() {

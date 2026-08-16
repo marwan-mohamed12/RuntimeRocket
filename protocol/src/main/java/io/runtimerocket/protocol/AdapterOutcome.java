@@ -7,6 +7,7 @@ public final class AdapterOutcome {
     public static final String SUCCESS = "SUCCESS";
     public static final String PARTIAL = "PARTIAL";
     public static final String FAILED = "FAILED";
+    public static final String RESTART_REQUIRED = "RESTART_REQUIRED";
 
     public String adapterId;
     public String status;
