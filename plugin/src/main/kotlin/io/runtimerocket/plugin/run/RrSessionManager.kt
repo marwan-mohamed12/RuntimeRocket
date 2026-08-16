@@ -1,8 +1,11 @@
 package io.runtimerocket.plugin.run
 
 import com.intellij.execution.process.ProcessHandler
+import com.intellij.execution.runners.ExecutionEnvironment
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.Project
+import io.runtimerocket.protocol.ReloadRequest
+import io.runtimerocket.protocol.ReloadResult
 import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.CompletableFuture
@@ -23,6 +26,7 @@ class RrSessionManager(private val project: Project) {
         expectedPid: Long?,
         expectedToken: String,
         startedAfter: Instant,
+        environment: ExecutionEnvironment? = null,
         timeout: Duration = HandshakeClient.TIMEOUT,
         client: HandshakeClient = HandshakeClient(),
     ): CompletableFuture<RrSession?> {
@@ -32,7 +36,7 @@ class RrSessionManager(private val project: Project) {
                 if (handshake == null) {
                     return@supplyAsync null
                 }
-                RrSession(expectedToken, handshake, handler)
+                RrSession(expectedToken, handshake, handler, environment)
             },
             executor,
         )
@@ -63,6 +67,10 @@ class RrSessionManager(private val project: Project) {
     fun hasActiveSession(): Boolean = sessions.isNotEmpty()
 
     fun activeSessions(): Collection<RrSession> = sessions.values.toList()
+
+    fun sendReload(request: ReloadRequest): List<ReloadResult> {
+        return activeSessions().map { it.sendReload(request) }
+    }
 
     companion object {
         fun getInstance(project: Project): RrSessionManager {

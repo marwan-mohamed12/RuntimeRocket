@@ -23,6 +23,13 @@
                          instance="io.runtimerocket.plugin.settings.RrConfigurable"
                          displayName="RuntimeRocket"/>
     <runConfigurationExtension implementation="io.runtimerocket.plugin.run.RrRunConfigurationExtension"/>
+    <statusBarWidgetFactory id="RuntimeRocket"
+                            implementation="io.runtimerocket.plugin.ui.RrStatusBarWidgetFactory"/>
+    <toolWindow id="RuntimeRocket" anchor="bottom" icon="/icons/rr.svg"
+                factoryClass="io.runtimerocket.plugin.ui.RrToolWindowFactory"/>
+    <codeInsight.lineMarkerProvider language="JAVA"
+                                    implementationClass="io.runtimerocket.plugin.ui.RrLastReloadLineMarkerProvider"/>
+    <editorNotificationProvider implementation="io.runtimerocket.plugin.ui.RrRestartEditorNotificationProvider"/>
   </extensions>
 
   <projectListeners>
@@ -31,6 +38,12 @@
   </projectListeners>
 
   <actions>
+    <action id="rr.reloadNow"
+            class="io.runtimerocket.plugin.ui.ReloadNowAction"
+            text="RuntimeRocket: Reload Now"
+            description="Push last compile output to the agent">
+      <add-to-group group-id="ToolsMenu" anchor="last"/>
+    </action>
     <action id="rr.toggle"
             class="io.runtimerocket.plugin.ui.ToggleRrAction"
             text="Enable RuntimeRocket on Run Configuration"

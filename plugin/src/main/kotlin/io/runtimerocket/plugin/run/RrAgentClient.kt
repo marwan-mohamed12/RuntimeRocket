@@ -7,6 +7,8 @@ import io.runtimerocket.protocol.HelloOk
 import io.runtimerocket.protocol.Protocol
 import io.runtimerocket.protocol.ProtocolCodec
 import io.runtimerocket.protocol.ProtocolException
+import io.runtimerocket.protocol.ReloadRequest
+import io.runtimerocket.protocol.ReloadResult
 import java.io.BufferedReader
 import java.io.BufferedWriter
 import java.io.InputStreamReader
@@ -65,6 +67,7 @@ class RrAgentClient(
     companion object {
         const val CONNECT_TIMEOUT_MS = 5_000
         const val HELLO_READ_TIMEOUT_MS = 5_000
+        const val RELOAD_READ_TIMEOUT_MS = 30_000
     }
 
     fun send(frame: Frame) {
@@ -75,6 +78,24 @@ class RrAgentClient(
             frame.seq = nextSeq()
         }
         write(frame)
+    }
+
+    @Synchronized
+    fun sendReload(request: ReloadRequest, timeoutMs: Int = RELOAD_READ_TIMEOUT_MS): ReloadResult {
+        val sock = socket ?: throw IllegalStateException("not connected")
+        val previous = sock.soTimeout
+        sock.soTimeout = timeoutMs
+        try {
+            send(request)
+            while (true) {
+                val frame = readFrame() ?: throw IllegalStateException("agent closed during reload")
+                if (frame is ReloadResult) {
+                    return frame
+                }
+            }
+        } finally {
+            sock.soTimeout = previous
+        }
     }
 
     fun readFrame(): Frame? {

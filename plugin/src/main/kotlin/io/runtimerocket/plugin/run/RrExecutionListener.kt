@@ -6,6 +6,7 @@ import com.intellij.execution.runners.ExecutionEnvironment
 import io.runtimerocket.plugin.settings.RrProjectSettings
 import io.runtimerocket.plugin.ui.RrNotifier
 import io.runtimerocket.plugin.ui.RrStatus
+import io.runtimerocket.plugin.watch.RrReloadService
 
 class RrExecutionListener : ExecutionListener {
     override fun processStarted(executorId: String, env: ExecutionEnvironment, handler: ProcessHandler) {
@@ -25,6 +26,7 @@ class RrExecutionListener : ExecutionListener {
             expectedPid = pid,
             expectedToken = sessionToken.token,
             startedAfter = startedAfter,
+            environment = env,
         ).whenComplete { session, error ->
             if (error != null || session == null) {
                 RrStatus.notAttached(project)
@@ -33,6 +35,7 @@ class RrExecutionListener : ExecutionListener {
             }
             try {
                 manager.connect(session)
+                RrReloadService.getInstance(project).baseline()
                 RrStatus.attached(project, session.backend)
                 RrNotifier.attached(project, session.backend)
             } catch (e: Exception) {

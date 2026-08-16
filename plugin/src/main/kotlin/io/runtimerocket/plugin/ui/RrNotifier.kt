@@ -49,6 +49,24 @@ object RrNotifier {
         )
     }
 
+    fun reloadResult(project: Project, decision: RrReloadPresenter.Decision) {
+        if (!decision.showBalloon) {
+            return
+        }
+        val notification =
+            NotificationGroupManager.getInstance()
+                .getNotificationGroup(GROUP_ID)
+                .createNotification(decision.balloonText, decision.balloonType)
+        if (RrReloadPresenter.ACTION_RESTART in decision.actions) {
+            notification.addAction(RestartRunConfigAction(project))
+        }
+        notification.notify(project)
+    }
+
+    fun notAttachedCompile(project: Project) {
+        notify(project, "Compile finished — RuntimeRocket is not attached. Nothing reloaded.", NotificationType.WARNING)
+    }
+
     private fun notify(project: Project, content: String, type: NotificationType) {
         NotificationGroupManager.getInstance()
             .getNotificationGroup(GROUP_ID)
