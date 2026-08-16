@@ -1,4 +1,4 @@
-package io.runtimerocket.frameworks.spring.testapp;
+package demo.rr.spring;
 
 public class ProxiedTarget {
 

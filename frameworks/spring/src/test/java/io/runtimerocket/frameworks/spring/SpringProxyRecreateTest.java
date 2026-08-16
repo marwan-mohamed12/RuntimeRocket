@@ -1,10 +1,10 @@
 package io.runtimerocket.frameworks.spring;
 
+import demo.rr.spring.ForcedProxyService;
+import demo.rr.spring.ProxiedTarget;
 import io.runtimerocket.agent.spi.Capabilities;
 import io.runtimerocket.agent.spi.ClassReloadEvent;
 import io.runtimerocket.agent.spi.ReloadedClass;
-import io.runtimerocket.frameworks.spring.testapp.ForcedProxyService;
-import io.runtimerocket.frameworks.spring.testapp.ProxiedTarget;
 import io.runtimerocket.protocol.AdapterOutcome;
 
 import org.junit.jupiter.api.AfterEach;
@@ -61,6 +61,7 @@ class SpringProxyRecreateTest {
 
         Object after = context.getBean("proxiedTarget");
         assertTrue(AopUtils.isAopProxy(after));
+        assertNotSame(proxy, after);
         assertSame(target, AopProxyUtils.getSingletonTarget(after));
         assertSame(target, AopProxyUtils.getSingletonTarget(proxy));
         assertEquals("target", ((ProxiedTarget) after).id());
@@ -93,8 +94,6 @@ class SpringProxyRecreateTest {
         context.refresh();
         SpringContextTracker.register(context);
 
-        String direct = SpringProxies.recreate(context, ForcedProxyService.class);
-        assertEquals(SpringAdapter.PROXY_STALE_DETAIL, direct, "direct recreate");
         AdapterOutcome outcome =
                 adapter.onClassesReloaded(
                         reload(ForcedProxyService.class.getName(), ForcedProxyService.class, "BODY"));
@@ -116,9 +115,9 @@ class SpringProxyRecreateTest {
         context.refresh();
         SpringContextTracker.register(context);
 
-        String direct = SpringProxies.recreate(context, ProxiedTarget.class);
-        assertEquals(null, direct, "direct recreate");
-        adapter.onClassesReloaded(reload(ProxiedTarget.class.getName(), ProxiedTarget.class, "BODY"));
+        AdapterOutcome outcome =
+                adapter.onClassesReloaded(reload(ProxiedTarget.class.getName(), ProxiedTarget.class, "BODY"));
+        assertEquals(AdapterOutcome.SUCCESS, outcome.status, outcome.detail);
         Object after = context.getBean("proxiedTarget");
         assertNotSame(proxy, after);
         assertSame(target, AopProxyUtils.getSingletonTarget(after));

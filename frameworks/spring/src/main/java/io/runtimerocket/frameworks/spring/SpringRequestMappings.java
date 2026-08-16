@@ -116,16 +116,47 @@ public final class SpringRequestMappings {
             throw new IllegalStateException("getHandlerMethods");
         }
         List<Object> stale = new ArrayList<>();
+        List<Object[]> snapshot = new ArrayList<>();
         for (Map.Entry<?, ?> entry : methods.entrySet()) {
             if (matchesHandler(entry.getValue(), handlerName, handler, type)) {
                 stale.add(entry.getKey());
+                snapshot.add(new Object[] {entry.getKey(), entry.getValue()});
             }
         }
         for (Object key : stale) {
             invoke(unregister, mapping, key);
         }
-        Object detectArg = handlerName != null ? handlerName : handler;
-        invoke(detect, mapping, detectArg);
+        try {
+            Object detectArg = handlerName != null ? handlerName : handler;
+            invoke(detect, mapping, detectArg);
+        } catch (Exception e) {
+            restoreMappings(mapping, snapshot);
+            throw e;
+        }
+    }
+
+    private static void restoreMappings(Object mapping, List<Object[]> snapshot) {
+        Method register = findPublic(mapping.getClass(), "registerMapping", Object.class, Object.class, Method.class);
+        if (register == null) {
+            return;
+        }
+        for (Object[] item : snapshot) {
+            try {
+                Object handlerMethod = item[1];
+                Method getBean = findPublic(handlerMethod.getClass(), "getBean");
+                Method getMethod = findPublic(handlerMethod.getClass(), "getMethod");
+                if (getBean == null || getMethod == null) {
+                    continue;
+                }
+                Object bean = invoke(getBean, handlerMethod);
+                Object method = invoke(getMethod, handlerMethod);
+                if (method instanceof Method reflected) {
+                    invoke(register, mapping, item[0], bean, reflected);
+                }
+            } catch (Exception ignored) {
+                // best-effort restore; caller still reports FAILED
+            }
+        }
     }
 
     private static boolean matchesHandler(Object handlerMethod, String handlerName, Object handler, Class<?> type) {

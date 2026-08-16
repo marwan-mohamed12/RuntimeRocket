@@ -1,11 +1,11 @@
 package io.runtimerocket.frameworks.spring;
 
+import demo.rr.spring.ChangedController;
+import demo.rr.spring.HelloController;
+import demo.rr.spring.MappingConfig;
 import io.runtimerocket.agent.spi.Capabilities;
 import io.runtimerocket.agent.spi.ClassReloadEvent;
 import io.runtimerocket.agent.spi.ReloadedClass;
-import io.runtimerocket.frameworks.spring.testapp.ChangedController;
-import io.runtimerocket.frameworks.spring.testapp.HelloController;
-import io.runtimerocket.frameworks.spring.testapp.MappingConfig;
 import io.runtimerocket.protocol.AdapterOutcome;
 
 import org.junit.jupiter.api.AfterEach;
@@ -75,8 +75,6 @@ class SpringRequestMappingTest {
         assertFalse(paths(mapping).contains("/changed"), paths(mapping).toString());
         SpringContextTracker.register(context);
 
-        String direct = SpringRequestMappings.rebuild(context, ChangedController.class);
-        assertEquals(null, direct, "direct rebuild: " + paths(mapping));
         AdapterOutcome outcome =
                 adapter.onClassesReloaded(reload(ChangedController.class.getName(), ChangedController.class, "ADD_METHOD"));
         assertEquals(AdapterOutcome.SUCCESS, outcome.status, outcome.detail);
@@ -97,21 +95,19 @@ class SpringRequestMappingTest {
         context.refresh();
         mapping.fail = true;
         SpringContextTracker.register(context);
+        assertTrue(paths(mapping).contains("/hello"), paths(mapping).toString());
 
-        String direct = SpringRequestMappings.rebuild(context, HelloController.class);
-        assertEquals(SpringAdapter.MAPPING_STALE_DETAIL, direct, "direct rebuild");
         AdapterOutcome outcome =
                 adapter.onClassesReloaded(reload(HelloController.class.getName(), HelloController.class, "BODY"));
         assertEquals(AdapterOutcome.FAILED, outcome.status, outcome.detail);
         assertEquals(SpringAdapter.MAPPING_STALE_DETAIL, outcome.detail);
+        assertTrue(paths(mapping).contains("/hello"), "failed rebuild must restore live mappings: " + paths(mapping));
     }
 
     @Test
     void missingDetectMethodOnDummyMappingIsFailedNotSilent() {
         DummyMapping dummy = new DummyMapping();
-        String detail =
-                SpringRequestMappings.rebuild(
-                        new MappingOnlyContext(dummy), HelloController.class);
+        String detail = SpringRequestMappings.rebuild(new MappingOnlyContext(dummy), HelloController.class);
         assertEquals(SpringAdapter.MAPPING_STALE_DETAIL, detail);
     }
 

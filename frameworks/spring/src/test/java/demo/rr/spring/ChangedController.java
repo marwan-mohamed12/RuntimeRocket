@@ -1,13 +1,18 @@
-package io.runtimerocket.frameworks.spring.testapp;
+package demo.rr.spring;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-public class HelloController {
+public class ChangedController {
 
     @GetMapping("/hello")
     public String hello() {
         return "hello";
+    }
+
+    @GetMapping("/changed")
+    public String changed() {
+        return "changed";
     }
 }

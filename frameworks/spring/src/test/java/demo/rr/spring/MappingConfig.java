@@ -1,4 +1,4 @@
-package io.runtimerocket.frameworks.spring.testapp;
+package demo.rr.spring;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

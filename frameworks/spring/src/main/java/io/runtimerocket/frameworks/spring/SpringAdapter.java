@@ -293,15 +293,9 @@ public final class SpringAdapter implements FrameworkAdapter {
     }
 
     private static boolean skip(String binaryName) {
-        if (binaryName == null) {
-            return false;
-        }
-        // fixture types live under frameworks.spring.testapp and must be refreshed
-        if (binaryName.contains(".testapp.")) {
-            return false;
-        }
-        return binaryName.startsWith("io.runtimerocket.agent.")
-                || binaryName.startsWith("io.runtimerocket.frameworks.")
-                || binaryName.startsWith("io.runtimerocket.protocol.");
+        return binaryName != null
+                && (binaryName.startsWith("io.runtimerocket.agent.")
+                        || binaryName.startsWith("io.runtimerocket.frameworks.")
+                        || binaryName.startsWith("io.runtimerocket.protocol."));
     }
 }
