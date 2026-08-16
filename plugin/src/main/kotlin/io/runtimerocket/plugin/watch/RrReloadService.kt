@@ -36,8 +36,7 @@ class RrReloadService(private val project: Project) {
     private val pending = AtomicBoolean(false)
     private val pendingTrigger = AtomicReference<String?>(null)
     private val debounceLock = Any()
-    private var debounceTask: ScheduledFuture<*>? = null
-    private var vfsIdleTask: ScheduledFuture<*>? = null
+    private var gradleScanTask: ScheduledFuture<*>? = null
     internal val compileCycle = RrCompileCycle()
     private val executor: ScheduledExecutorService =
         Executors.newSingleThreadScheduledExecutor { runnable ->
@@ -53,8 +52,8 @@ class RrReloadService(private val project: Project) {
 
     fun onCompileFinished(aborted: Boolean, errors: Int, context: CompileContext) {
         val failed = aborted || errors > 0
-        val shouldPush = compileCycle.onCompileFinished(failed)
-        cancelDebounce()
+        compileCycle.onCompileFinished(failed)
+        cancelScheduledWork()
         if (failed) {
             forceAfterCompile.set(false)
             RrStatus.idle(project, "Compile failed — nothing reloaded")
@@ -71,30 +70,10 @@ class RrReloadService(private val project: Project) {
     }
 
     fun onOutputChanged(paths: Collection<Path>) {
-        if (paths.isEmpty()) {
+        // Gradle writes during compile are discarded here on purpose. When the
+        // compile listener does not fire, ARM_VFS scans outputs after a settle delay.
+        if (paths.isEmpty() || !compileCycle.shouldScheduleVfs()) {
             return
-        }
-        val settings = RrProjectSettings.getInstance(project)
-        if (!settings.autoReloadOnSuccessfulCompile) {
-            return
-        }
-        if (!compileCycle.shouldScheduleVfs()) {
-            return
-        }
-        synchronized(debounceLock) {
-            debounceTask?.cancel(false)
-            debounceTask =
-                executor.schedule(
-                    {
-                        if (!compileCycle.shouldScheduleVfs()) {
-                            return@schedule
-                        }
-                        compileCycle.markReloadStarted()
-                        pushDiff(context = null, trigger = ReloadRequest.TRIGGER_COMPILE, startedAt = System.nanoTime())
-                    },
-                    VFS_DEBOUNCE_MS,
-                    TimeUnit.MILLISECONDS,
-                )
         }
     }
 
@@ -125,7 +104,7 @@ class RrReloadService(private val project: Project) {
                         return
                     }
                     compileCycle.onBuildStarted()
-                    cancelDebounce()
+                    cancelScheduledWork()
                     RrStatus.compiling(project)
                 }
 
@@ -144,15 +123,19 @@ class RrReloadService(private val project: Project) {
     }
 
     private fun armGradleVfsWindow() {
+        if (!RrProjectSettings.getInstance(project).autoReloadOnSuccessfulCompile) {
+            compileCycle.disarmVfs()
+            restoreAfterBuild()
+            return
+        }
         synchronized(debounceLock) {
-            vfsIdleTask?.cancel(false)
-            vfsIdleTask =
+            gradleScanTask?.cancel(false)
+            gradleScanTask =
                 executor.schedule(
                     {
+                        compileCycle.markReloadStarted()
                         compileCycle.disarmVfs()
-                        if (!compileCycle.reloadStarted && !inFlight.get()) {
-                            restoreAfterBuild()
-                        }
+                        pushDiff(context = null, trigger = ReloadRequest.TRIGGER_COMPILE, startedAt = System.nanoTime())
                     },
                     VFS_ARM_MS,
                     TimeUnit.MILLISECONDS,
@@ -332,17 +315,16 @@ class RrReloadService(private val project: Project) {
         history().lastMissingOutput = ModuleOutputLocator.formatMissingOutput(located)
     }
 
-    private fun cancelDebounce() {
+    private fun cancelScheduledWork() {
         synchronized(debounceLock) {
-            debounceTask?.cancel(false)
-            debounceTask = null
+            gradleScanTask?.cancel(false)
+            gradleScanTask = null
         }
     }
 
     private fun history(): RrReloadHistory = RrReloadHistory.getInstance(project)
 
     companion object {
-        const val VFS_DEBOUNCE_MS = 150L
         const val VFS_ARM_MS = 400L
 
         fun getInstance(project: Project): RrReloadService {

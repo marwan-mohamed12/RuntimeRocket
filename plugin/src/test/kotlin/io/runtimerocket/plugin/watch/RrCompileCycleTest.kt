@@ -26,7 +26,20 @@ class RrCompileCycleTest {
         val cycle = RrCompileCycle()
         cycle.onBuildStarted()
         assertEquals(RrCompileCycle.BuildFinish.ARM_VFS, cycle.onBuildFinished())
+        assertTrue(cycle.shouldScanOutputs())
         assertTrue(cycle.shouldScheduleVfs())
+    }
+
+    @Test
+    fun armVfsMeansScanOutputsNotWaitForEvents() {
+        val cycle = RrCompileCycle()
+        cycle.onBuildStarted()
+        assertFalse(cycle.shouldScanOutputs())
+        assertEquals(RrCompileCycle.BuildFinish.ARM_VFS, cycle.onBuildFinished())
+        assertTrue(cycle.shouldScanOutputs())
+        cycle.onBuildStarted()
+        assertFalse(cycle.shouldScanOutputs())
+        assertFalse(cycle.shouldScheduleVfs())
     }
 
     @Test

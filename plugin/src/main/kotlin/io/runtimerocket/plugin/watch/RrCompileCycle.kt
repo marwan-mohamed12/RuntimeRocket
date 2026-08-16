@@ -52,6 +52,9 @@ internal class RrCompileCycle {
         return BuildFinish.ARM_VFS
     }
 
+    /** Gradle path: scan outputs after settle; do not wait for later VFS events. */
+    fun shouldScanOutputs(): Boolean = vfsArmed && !listenerHandled && !compiling
+
     fun markReloadStarted() {
         reloadStarted = true
     }
