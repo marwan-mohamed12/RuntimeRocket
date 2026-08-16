@@ -13,6 +13,8 @@ import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.content.ContentFactory
 import com.intellij.util.ui.FormBuilder
 import com.intellij.util.ui.JBUI
+import io.runtimerocket.plugin.run.AttachRuntimeRocketAction
+import io.runtimerocket.plugin.run.LateAttachNotes
 import io.runtimerocket.plugin.run.RrHotSwapPolicy
 import io.runtimerocket.plugin.run.RrSessionManager
 import io.runtimerocket.plugin.watch.RrReloadHistory
@@ -43,6 +45,7 @@ class RrToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) {
         log.background = JBColor.background()
         val actions = DefaultActionGroup()
         actions.add(ReloadNowAction())
+        actions.add(AttachRuntimeRocketAction())
         actions.add(RestartRunConfigAction(project))
         val toolbar = ActionManager.getInstance().createActionToolbar(ActionPlaces.TOOLWINDOW_TOOLBAR_BAR, actions, true)
         toolbar.targetComponent = this
@@ -68,7 +71,9 @@ class RrToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) {
                 "No session"
             } else {
                 sessions.joinToString("  |  ") { session ->
-                    "pid ${session.pid}  ${session.backend}  ${session.handshake.version}"
+                    val spring = LateAttachNotes.springInactive(session.handshake.notes)
+                    val suffix = if (spring != null) "  PARTIAL $spring" else ""
+                    "pid ${session.pid}  ${session.backend}  ${session.handshake.version}$suffix"
                 }
             }
         footerLabel.text = RrHotSwapPolicy.footerText()

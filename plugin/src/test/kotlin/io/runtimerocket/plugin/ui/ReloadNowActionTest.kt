@@ -15,6 +15,16 @@ class ReloadNowActionTest {
         assertTrue(xml.contains("class=\"io.runtimerocket.plugin.ui.ReloadNowAction\""), xml)
     }
 
+    @Test
+    fun attachActionIsRegisteredWithoutDefaultKeymap() {
+        val xml = readPluginXml()
+        assertTrue(xml.contains("id=\"rr.attach\""), xml)
+        assertTrue(xml.contains("class=\"io.runtimerocket.plugin.run.AttachRuntimeRocketAction\""), xml)
+        val action = actionBlock(xml, "rr.attach")
+        assertFalse(action.contains("keyboard-shortcut"), action)
+        assertTrue(action.contains("Attach RuntimeRocket"), action)
+    }
+
     private fun readPluginXml(): String {
         val stream =
             javaClass.classLoader.getResourceAsStream("META-INF/plugin.xml")

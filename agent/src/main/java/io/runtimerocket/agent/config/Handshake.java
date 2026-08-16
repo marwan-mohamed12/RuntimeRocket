@@ -17,6 +17,7 @@ public final class Handshake {
     public final List<String> capabilities;
     public final String version;
     public final Instant startedAt;
+    public final List<String> notes;
 
     public Handshake(
             long pid,
@@ -26,6 +27,18 @@ public final class Handshake {
             List<String> capabilities,
             String version,
             Instant startedAt) {
+        this(pid, port, token, backend, capabilities, version, startedAt, List.of());
+    }
+
+    public Handshake(
+            long pid,
+            int port,
+            String token,
+            String backend,
+            List<String> capabilities,
+            String version,
+            Instant startedAt,
+            List<String> notes) {
         this.pid = pid;
         this.port = port;
         this.token = Objects.requireNonNull(token, "token");
@@ -33,6 +46,7 @@ public final class Handshake {
         this.capabilities = List.copyOf(capabilities);
         this.version = Objects.requireNonNull(version, "version");
         this.startedAt = Objects.requireNonNull(startedAt, "startedAt");
+        this.notes = List.copyOf(notes == null ? List.of() : notes);
     }
 
     public String toJson() {
@@ -52,6 +66,16 @@ public final class Handshake {
         sb.append("],");
         sb.append("\"version\":\"").append(escape(version)).append("\",");
         sb.append("\"startedAt\":\"").append(escape(startedAt.toString())).append('"');
+        if (!notes.isEmpty()) {
+            sb.append(",\"notes\":[");
+            for (int i = 0; i < notes.size(); i++) {
+                if (i > 0) {
+                    sb.append(',');
+                }
+                sb.append('"').append(escape(notes.get(i))).append('"');
+            }
+            sb.append(']');
+        }
         sb.append('}');
         return sb.toString();
     }
@@ -64,7 +88,8 @@ public final class Handshake {
         String backend = stringField(json, "backend");
         String version = stringField(json, "version");
         Instant startedAt = Instant.parse(stringField(json, "startedAt"));
-        return new Handshake(pid, port, token, backend, stringArray(json, "capabilities"), version, startedAt);
+        return new Handshake(
+                pid, port, token, backend, stringArray(json, "capabilities"), version, startedAt, stringArray(json, "notes"));
     }
 
     private static String escape(String raw) {

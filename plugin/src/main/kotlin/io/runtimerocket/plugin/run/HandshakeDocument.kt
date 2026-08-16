@@ -12,6 +12,7 @@ data class HandshakeDocument(
     val capabilities: List<String>,
     val version: String,
     val startedAt: Instant,
+    val notes: List<String> = emptyList(),
 ) {
     companion object {
         fun parse(json: String): HandshakeDocument {
@@ -23,6 +24,7 @@ data class HandshakeDocument(
                 capabilities = stringArray(json, "capabilities"),
                 version = stringField(json, "version"),
                 startedAt = Instant.parse(stringField(json, "startedAt")),
+                notes = stringArray(json, "notes"),
             )
         }
 

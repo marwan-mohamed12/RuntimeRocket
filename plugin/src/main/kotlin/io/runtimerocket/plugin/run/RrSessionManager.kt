@@ -16,6 +16,7 @@ import java.util.concurrent.Executors
 @Service(Service.Level.PROJECT)
 class RrSessionManager(private val project: Project) {
     private val sessions = ConcurrentHashMap<ProcessHandler, RrSession>()
+    private val lateSessions = ConcurrentHashMap<Long, RrSession>()
     private val executor: Executor =
         Executors.newCachedThreadPool { runnable ->
             Thread(runnable, "rr-handshake").apply { isDaemon = true }
@@ -49,24 +50,37 @@ class RrSessionManager(private val project: Project) {
             session.close()
             throw e
         }
-        session.processHandler?.let { sessions[it] = session }
+        val handler = session.processHandler
+        if (handler != null) {
+            sessions[handler] = session
+        } else {
+            lateSessions[session.pid] = session
+        }
         RrHotSwapPolicy.onSessionAttached(project)
         return session
     }
 
     fun disconnect(handler: ProcessHandler) {
         val session = sessions.remove(handler)
+        session?.let { lateSessions.remove(it.pid) }
         session?.close()
-        if (sessions.isEmpty()) {
+        if (!hasActiveSession()) {
+            RrHotSwapPolicy.onSessionDetached(project)
+        }
+    }
+
+    fun disconnectPid(pid: Long) {
+        lateSessions.remove(pid)?.close()
+        if (!hasActiveSession()) {
             RrHotSwapPolicy.onSessionDetached(project)
         }
     }
 
     fun session(handler: ProcessHandler): RrSession? = sessions[handler]
 
-    fun hasActiveSession(): Boolean = sessions.isNotEmpty()
+    fun hasActiveSession(): Boolean = sessions.isNotEmpty() || lateSessions.isNotEmpty()
 
-    fun activeSessions(): Collection<RrSession> = sessions.values.toList()
+    fun activeSessions(): Collection<RrSession> = (sessions.values + lateSessions.values).distinct()
 
     fun sendReload(request: ReloadRequest): List<ReloadResult> {
         return activeSessions().map { it.sendReload(request) }

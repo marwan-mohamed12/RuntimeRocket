@@ -40,6 +40,22 @@ class HandshakeFileTest {
         assertEquals(original.capabilities, parsed.capabilities);
         assertEquals(original.version, parsed.version);
         assertEquals(original.startedAt, parsed.startedAt);
+        assertEquals(List.of(), parsed.notes);
+    }
+
+    @Test
+    void roundTripJsonIncludesNotes() {
+        Handshake original = new Handshake(
+                42L,
+                53111,
+                "abc123",
+                "standard",
+                List.of("METHOD_BODY"),
+                "0.1.0-SNAPSHOT",
+                Instant.parse("2026-08-15T12:00:00Z"),
+                List.of("Spring adapter inactive until a request hits the app or you restart with -javaagent (premain)."));
+        Handshake parsed = Handshake.parse(original.toJson());
+        assertEquals(original.notes, parsed.notes);
     }
 
     @Test

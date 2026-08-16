@@ -17,5 +17,14 @@ class HandshakeDocumentTest {
         assertEquals(listOf("METHOD_BODY", "ADD_METHOD"), doc.capabilities)
         assertEquals("0.1.0-SNAPSHOT", doc.version)
         assertEquals(Instant.parse("2026-08-15T12:00:00Z"), doc.startedAt)
+        assertEquals(emptyList<String>(), doc.notes)
+    }
+
+    @Test
+    fun parsesOptionalNotes() {
+        val json =
+            """{"pid":1,"port":2,"token":"t","backend":"standard","capabilities":[],"version":"0.1.0-SNAPSHOT","startedAt":"2026-08-15T12:00:00Z","notes":["Spring adapter inactive until restart"]}"""
+        val doc = HandshakeDocument.parse(json)
+        assertEquals(listOf("Spring adapter inactive until restart"), doc.notes)
     }
 }

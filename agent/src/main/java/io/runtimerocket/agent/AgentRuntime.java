@@ -114,17 +114,22 @@ public final class AgentRuntime {
                         inst, backend, classIndex, watchDirs, watcher, log, adapterHost, lateAttach);
         this.watcher.setHandler(orchestrator::reload);
         adapterHost.onAgentStart(adapterContext);
+        List<String> lateNotes = new ArrayList<>();
         if (lateAttach) {
             for (AdapterOutcome outcome : adapterHost.onLateAttach(adapterContext)) {
                 if (outcome != null
                         && outcome.status != null
-                        && !AdapterOutcome.SUCCESS.equals(outcome.status)
-                        && log != null) {
-                    log.warn("adapter "
-                            + outcome.adapterId
-                            + " late-attach "
-                            + outcome.status
-                            + (outcome.detail == null ? "" : " " + outcome.detail));
+                        && !AdapterOutcome.SUCCESS.equals(outcome.status)) {
+                    if (outcome.detail != null && !outcome.detail.isBlank()) {
+                        lateNotes.add(outcome.detail);
+                    }
+                    if (log != null) {
+                        log.warn("adapter "
+                                + outcome.adapterId
+                                + " late-attach "
+                                + outcome.status
+                                + (outcome.detail == null ? "" : " " + outcome.detail));
+                    }
                 }
             }
         }
@@ -138,7 +143,8 @@ public final class AgentRuntime {
                 backend.id(),
                 backend.capabilityNames(),
                 AgentVersion.VERSION,
-                Instant.now().truncatedTo(ChronoUnit.SECONDS));
+                Instant.now().truncatedTo(ChronoUnit.SECONDS),
+                lateNotes);
         this.handshakePath = HandshakeFile.write(handshake);
         server.start();
         watcher.start();

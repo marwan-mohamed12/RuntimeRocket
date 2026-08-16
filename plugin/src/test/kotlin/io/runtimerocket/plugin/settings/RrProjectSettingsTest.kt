@@ -36,4 +36,11 @@ class RrProjectSettingsTest {
         settings.includeTests = true
         assertFalse(settings.decideEnabled(RrRunConfigSupport.JUNIT_TYPE_ID, userEnabled = null))
     }
+
+    @Test
+    fun jbrConsentDefaultsFalse() {
+        val settings = RrProjectSettings()
+        assertFalse(settings.jbrConsentAccepted)
+        assertFalse(settings.jbrConsentAsked)
+    }
 }

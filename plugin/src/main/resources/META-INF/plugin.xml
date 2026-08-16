@@ -50,5 +50,17 @@
             class="io.runtimerocket.plugin.ui.ToggleRrAction"
             text="Enable RuntimeRocket on Run Configuration"
             description="Toggle RuntimeRocket on the selected run configuration"/>
+    <action id="rr.attach"
+            class="io.runtimerocket.plugin.run.AttachRuntimeRocketAction"
+            text="Attach RuntimeRocket"
+            description="Late-attach the RuntimeRocket agent to a running local JVM">
+      <add-to-group group-id="ToolsMenu" anchor="last"/>
+    </action>
+    <action id="rr.useBundledJbr"
+            class="io.runtimerocket.plugin.run.UseBundledJbrAction"
+            text="Use bundled JetBrains Runtime for this configuration"
+            description="Set the selected run configuration JRE to bundled JetBrains Runtime after consent">
+      <add-to-group group-id="ToolsMenu" anchor="last"/>
+    </action>
   </actions>
 </idea-plugin>

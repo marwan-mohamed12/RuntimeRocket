@@ -22,8 +22,9 @@ class RrJavaProgramPatcher : JavaProgramPatcher() {
         val enhanced = JbrDetector.isEnhancedCapable(params.jdk)
         applyTo(params, agentJar, launch.file, settings.logLevel, enhanced)
 
-        if (!enhanced && settings.preferEnhanced && JbrDetector.jbrHome() != null) {
-            RrNotifier.warnLimitedHotSwap(project, params.jdk)
+        val jbrAvailable = JbrDetector.jbrHome() != null
+        if (!enhanced && settings.preferEnhanced && jbrAvailable && RrJbrConsent.shouldOffer(settings, enhanced, jbrAvailable)) {
+            RrNotifier.warnLimitedHotSwap(project, params.jdk, configuration)
         }
     }
 

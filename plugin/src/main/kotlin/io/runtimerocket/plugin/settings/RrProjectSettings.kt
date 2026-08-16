@@ -23,6 +23,8 @@ class RrProjectSettings : PersistentStateComponent<RrProjectSettings.State> {
         var disabledAdapters: MutableList<String> = mutableListOf(),
         var logLevel: String = "info",
         var hotSwapPromptShown: Boolean = false,
+        var jbrConsentAccepted: Boolean = false,
+        var jbrConsentAsked: Boolean = false,
     )
 
     private var state = State()
@@ -73,6 +75,18 @@ class RrProjectSettings : PersistentStateComponent<RrProjectSettings.State> {
         get() = state.hotSwapPromptShown
         set(value) {
             state.hotSwapPromptShown = value
+        }
+
+    var jbrConsentAccepted: Boolean
+        get() = state.jbrConsentAccepted
+        set(value) {
+            state.jbrConsentAccepted = value
+        }
+
+    var jbrConsentAsked: Boolean
+        get() = state.jbrConsentAsked
+        set(value) {
+            state.jbrConsentAsked = value
         }
 
     fun enabledFor(configuration: RunProfile): Boolean {
