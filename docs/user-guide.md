@@ -1,8 +1,9 @@
 # RuntimeRocket user guide
 
-Day-to-day use of **0.1.0-SNAPSHOT**. Architecture and the full support
-matrix are in [design.md](design.md). `runtimerocket.xml` schema is in
-[runtimerocket-xml.md](runtimerocket-xml.md).
+Day-to-day use of **0.1.0-SNAPSHOT**. **How to start and attach**
+(IntelliJ Run vs terminal / Hybris): [getting-started.md](getting-started.md).
+SAP Commerce: [hybris.md](hybris.md). Architecture: [design.md](design.md).
+`runtimerocket.xml`: [runtimerocket-xml.md](runtimerocket-xml.md).
 
 ## Install into IntelliJ
 
@@ -151,8 +152,9 @@ Restart.
 run-configuration type, or a forked Gradle JVM). Compiling does not reload.
 
 JUnit is not patched unless **Include test output** is on.
-`hybrisserver` / Gradle `bootRun` / `JavaExec` are not patched — pass
-`-javaagent` yourself or use **Tools | Attach RuntimeRocket**.
+`hybrisserver` / Gradle `bootRun` / `JavaExec` are not patched — see
+[getting-started.md](getting-started.md#path-b--attach-to-a-process-already-running)
+and [hybris.md](hybris.md).
 
 ## Attach RuntimeRocket (late attach)
 
@@ -177,6 +179,10 @@ Limitations:
   dialog; they are never silent.
 
 Prefer `-javaagent` at start (the run-configuration checkbox) for Spring.
+
+If attach reports **handshake timed out** but the app log shows
+`agent … started`, IntelliJ and the app are using different temp
+directories. Fix: [getting-started.md](getting-started.md#handshake-timed-out).
 
 ## Standalone agent and `runtimerocket.xml`
 

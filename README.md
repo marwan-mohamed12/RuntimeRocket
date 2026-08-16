@@ -3,11 +3,12 @@
 JRebel-style JVM class reload for IntelliJ IDEA: after a successful compile,
 push changed `.class` files into a running application without a restart.
 
-**0.1.0-SNAPSHOT** in this tree is dogfoodable. Install the plugin zip, enable
-RuntimeRocket on an Application run configuration, compile, and keep the
-process running. Architecture and the support matrix live in
-[docs/design.md](docs/design.md). Day-to-day UX, `RESTART_REQUIRED`, the
-standalone agent, and late attach are in [docs/user-guide.md](docs/user-guide.md).
+**0.1.0-SNAPSHOT** in this tree is dogfoodable. Install the plugin zip, then
+follow [docs/getting-started.md](docs/getting-started.md) — IntelliJ
+**Run** for a normal app, or **Attach** for `hybrisserver` / a terminal JVM.
+SAP Commerce steps: [docs/hybris.md](docs/hybris.md). Architecture is in
+[docs/design.md](docs/design.md). Status bar, `RESTART_REQUIRED`, and the
+standalone agent: [docs/user-guide.md](docs/user-guide.md).
 
 This is **not** a JetBrains Marketplace listing. There is no Hibernate/JPA
 adapter and no stock-JDK versioning backend in 0.1.0.
@@ -128,9 +129,9 @@ After restart, **Settings | Plugins | Installed** should list **RuntimeRocket**.
    HotSwap (add methods/fields). The plugin never silently swaps the JRE; it
    offers **Use bundled JetBrains Runtime** once per project.
 
-`hybrisserver`, Gradle `bootRun`, and `JavaExec` are **not** patched — see
-Limitations. Use an Application (or Spring Boot) run configuration, or
-**Tools | Attach RuntimeRocket** after the process is up.
+`hybrisserver`, Gradle `bootRun`, and `JavaExec` are **not** patched.
+Pick a path in [docs/getting-started.md](docs/getting-started.md).
+Hybris: [docs/hybris.md](docs/hybris.md).
 
 ### 5. Verify it attached
 
@@ -175,9 +176,11 @@ sees).
 
 ## Limitations (v1)
 
-- **Gradle `bootRun` / `JavaExec` is not patched.** Forked launchers never
-  see `JavaProgramPatcher`. Pass `-javaagent` yourself or use an Application
-  run configuration. A Gradle plugin is a later PR.
+- **Gradle `bootRun` / `JavaExec` / `hybrisserver` is not patched.**
+  Forked launchers never see `JavaProgramPatcher`. Attach after start
+  ([getting-started](docs/getting-started.md#path-b--attach-to-a-process-already-running))
+  or pass `-javaagent` yourself. Hybris: [docs/hybris.md](docs/hybris.md).
+  A Gradle plugin is a later PR.
 - **Stock JDK is method-body only.** Structural edits need JBR/DCEVM.
 - **Adding, removing, or reordering enum constants is `RESTART_REQUIRED`**
   even on JBR (stale `$VALUES` / `values()`).
