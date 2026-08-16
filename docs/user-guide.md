@@ -70,8 +70,9 @@ Typical causes:
 
 - Stock JDK + any structural change (add/remove method or field, new
   constructor, descriptor change).
-- Either backend: superclass change, add/remove interface, record component
-  change, sealed `permits` change, lambda/anonymous index shift.
+- Either backend: superclass change, add/remove interface, annotation-only
+  edits, record component change, sealed `permits` change, lambda/anonymous
+  index shift.
 - **Enum constant add/remove/reorder** — even on JBR. The class file would
   load, but `$VALUES` / `values()` stay stale because `<clinit>` is not
   re-run.
@@ -96,7 +97,7 @@ Restart.
 
 1. **Settings | Tools | RuntimeRocket** — project-level enable, auto-reload
    on successful compile, include test output (off), prefer enhanced, log
-   level, extra watch dirs.
+   level.
 2. **Application** / **Jar Application** run configuration → **RuntimeRocket**
    tab → **Enable RuntimeRocket**. New Application configs default to on
    once the project setting is enabled.
@@ -198,10 +199,18 @@ Project (**Settings | Tools | RuntimeRocket**):
 - Include test output / JUnit (default off)
 - Prefer enhanced HotSwap (default on)
 - Agent log level
-- Extra watch dirs (path-separated)
 
-Application-level: show success balloons (default off); enable on new run
-configurations (default on).
+Application-level defaults (not exposed in the Settings UI yet): success
+balloons off; enable on new Application run configurations on. Edit the
+IDE’s `runtimerocket.xml` only if you need to change those.
+
+## Verified IDEs
+
+The plugin *targets* IntelliJ IDEA **2024.3–2026.2** (`since-build=243`,
+`until-build=262.*`). CI `pluginVerifier` currently runs only against
+**IC-2024.3**. 2026.2 verification is a follow-up: Community installers
+ended at 2025.3; the unified `IntellijIdea` type needs a pinned 2026.2.x
+and a large extra download.
 
 ## What 0.1.0 does not do
 

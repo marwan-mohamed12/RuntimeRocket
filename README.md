@@ -16,7 +16,7 @@ adapter and no stock-JDK versioning backend in 0.1.0.
 
 | Target JVM | What reloads | What does not |
 | --- | --- | --- |
-| **JetBrains Runtime / DCEVM** with `-XX:+AllowEnhancedClassRedefinition` | Method bodies; add/remove/rename methods; add/remove fields (new fields stay at Java defaults); add constructors; new classes; annotation changes | Superclass / interface changes; add/remove/reorder **enum constants**; record components; lambda/anonymous index shifts |
+| **JetBrains Runtime / DCEVM** with `-XX:+AllowEnhancedClassRedefinition` | Method bodies; add/remove/rename methods; add/remove fields (new fields stay at Java defaults); add constructors; new classes | Superclass / interface changes; add/remove/reorder **enum constants**; annotation-only edits; record components; lambda/anonymous index shifts |
 | **Stock JDK** (Temurin, Oracle, …) | Method-body changes only | Every structural change is `RESTART_REQUIRED` — never silently ignored |
 
 Supported reloads keep object identity, existing field values, and Spring
@@ -33,7 +33,10 @@ is best-effort (usually needs `-javaagent` at start).
 - A JDK 17+ to launch Gradle. The build uses toolchains: **Java 17** for
   agent / protocol / fixtures / tests, and **Java 21** for `:plugin`
   (IntelliJ IDEA 2024.3+ is a Java 21 IDE).
-- IntelliJ IDEA **2024.3–2026.2** (Community or Ultimate)
+- IntelliJ IDEA **2024.3–2026.2** (Community or Ultimate). The plugin
+  *targets* `243`–`262.*`; CI `pluginVerifier` currently runs only against
+  **IC-2024.3**. 2026.2 verification is a follow-up (unified `IntellijIdea`
+  type after IC installers ended at 2025.3).
 - Internet access on the first build (Gradle distribution, Maven Central,
   IntelliJ Platform SDK)
 - For add-method / add-field: **JetBrains Runtime** (the JRE bundled with
@@ -52,7 +55,7 @@ List the Gradle projects:
 Compile, test, and package the agent fat JAR:
 
 ```powershell
-.\gradlew.bat :protocol:test :agent:test :frameworks:spring:test :plugin:test :agent:shadowJar
+.\gradlew.bat :protocol:test :agent-api:test :agent:test :frameworks:spring:test :plugin:test :agent:shadowJar
 ```
 
 Build the installable plugin zip (first run downloads the IntelliJ Platform SDK):
@@ -70,7 +73,7 @@ The standalone agent is
 Same tasks with `./gradlew`:
 
 ```bash
-./gradlew :protocol:test :agent:test :frameworks:spring:test :plugin:test :agent:shadowJar
+./gradlew :protocol:test :agent-api:test :agent:test :frameworks:spring:test :plugin:test :agent:shadowJar
 ./gradlew :plugin:buildPlugin
 ```
 
@@ -158,7 +161,7 @@ sees).
 | `:agent-api` | Framework adapter SPI (Java 17) |
 | `:agent` | Java agent; Shadow fat JAR (Java 17) |
 | `:frameworks:spring` | Spring adapter. Main `compileOnly` is Boot 3.5 / Framework 6.2; source set `fw7` is Boot 4.1 / Framework 7 |
-| `:plugin` | IntelliJ Platform plugin (Kotlin / JVM 21). Targets IDEA 2024.3–2026.2 (`243`–`262.*`) |
+| `:plugin` | IntelliJ Platform plugin (Kotlin / JVM 21). Targets IDEA 2024.3–2026.2 (`243`–`262.*`); CI verifies **IC-2024.3** only |
 | `:fixtures:plain-java` | Sample plain-Java app |
 | `:fixtures:spring-boot` | Sample Spring Boot app (Boot 4.1 + Boot 3.5 test source set) |
 | `:fixtures:two-module` | Multi-module fixture (lib + app, two `runtimerocket.xml`) |
