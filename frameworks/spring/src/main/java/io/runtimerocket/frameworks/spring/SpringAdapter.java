@@ -15,7 +15,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Spring Boot adapter: tracks live contexts, registers new stereotype beans, keeps existing
- * singletons, and reports idle late-attach as PARTIAL.
+ * singletons, rebuilds controller mappings, recreates proxies best-effort, and reports idle
+ * late-attach as PARTIAL.
  */
 public final class SpringAdapter implements FrameworkAdapter {
 
@@ -26,6 +27,8 @@ public final class SpringAdapter implements FrameworkAdapter {
     public static final String WEBFLUX_AOT_DETAIL = "WebFlux/AOT not supported";
     public static final String CONFIG_CHANGED_DETAIL = "config changed — restart to apply";
     public static final String STATIC_DETAIL = "static-on-disk";
+    public static final String MAPPING_STALE_DETAIL = "controller mappings may be stale — restart";
+    public static final String PROXY_STALE_DETAIL = "proxy stale — restart";
 
     private final SpringHookTransformer transformer = new SpringHookTransformer();
     private final AtomicBoolean installed = new AtomicBoolean(false);
@@ -108,6 +111,8 @@ public final class SpringAdapter implements FrameworkAdapter {
             return AdapterOutcome.ok(ID);
         }
         try {
+            String status = AdapterOutcome.SUCCESS;
+            String detail = null;
             for (ReloadedClass reloaded : classes) {
                 if (reloaded == null || reloaded.type == null || skip(reloaded.binaryName)) {
                     continue;
@@ -118,7 +123,20 @@ public final class SpringAdapter implements FrameworkAdapter {
                 for (Object context : contexts) {
                     helper.getMethod("refresh", Object.class, Class.class, List.class)
                             .invoke(null, context, reloaded.type, reloaded.changeKinds);
+                    String mapping = SpringRequestMappings.rebuild(context, reloaded.type);
+                    if (mapping != null) {
+                        status = AdapterOutcome.FAILED;
+                        detail = mapping;
+                    }
+                    String proxy = SpringProxies.recreate(context, reloaded.type);
+                    if (proxy != null && !AdapterOutcome.FAILED.equals(status)) {
+                        status = AdapterOutcome.PARTIAL;
+                        detail = proxy;
+                    }
                 }
+            }
+            if (!AdapterOutcome.SUCCESS.equals(status)) {
+                return new AdapterOutcome(ID, status, 0L, detail);
             }
             return AdapterOutcome.ok(ID);
         } catch (ReflectiveOperationException e) {
@@ -275,9 +293,15 @@ public final class SpringAdapter implements FrameworkAdapter {
     }
 
     private static boolean skip(String binaryName) {
-        return binaryName != null
-                && (binaryName.startsWith("io.runtimerocket.agent.")
-                        || binaryName.startsWith("io.runtimerocket.frameworks.")
-                        || binaryName.startsWith("io.runtimerocket.protocol."));
+        if (binaryName == null) {
+            return false;
+        }
+        // fixture types live under frameworks.spring.testapp and must be refreshed
+        if (binaryName.contains(".testapp.")) {
+            return false;
+        }
+        return binaryName.startsWith("io.runtimerocket.agent.")
+                || binaryName.startsWith("io.runtimerocket.frameworks.")
+                || binaryName.startsWith("io.runtimerocket.protocol.");
     }
 }

@@ -25,10 +25,13 @@ dependencies {
     add(fw7.compileOnlyConfigurationName, project(":agent-api"))
     add(fw7.compileOnlyConfigurationName, "org.springframework:spring-context:${providers.gradleProperty("spring.framework.fw7.version").get()}")
     add(fw7.compileOnlyConfigurationName, "org.springframework.boot:spring-boot:${providers.gradleProperty("spring.boot.fw7.version").get()}")
+    add(fw7.compileOnlyConfigurationName, "org.springframework:spring-webmvc:${providers.gradleProperty("spring.framework.fw7.version").get()}")
 
     testImplementation(platform("org.junit:junit-bom:${providers.gradleProperty("junit.version").get()}"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testImplementation("org.springframework:spring-context:${providers.gradleProperty("spring.framework.version").get()}")
+    testImplementation("org.springframework:spring-webmvc:${providers.gradleProperty("spring.framework.version").get()}")
+    testImplementation("jakarta.servlet:jakarta.servlet-api:6.0.0")
     testImplementation("org.springframework.boot:spring-boot-starter:${providers.gradleProperty("spring.boot.version").get()}")
     testImplementation("org.ow2.asm:asm:${providers.gradleProperty("asm.version").get()}")
     testImplementation("net.bytebuddy:byte-buddy-agent:${providers.gradleProperty("bytebuddy.version").get()}")

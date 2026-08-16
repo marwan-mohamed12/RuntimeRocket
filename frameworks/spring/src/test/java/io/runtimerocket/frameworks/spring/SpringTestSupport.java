@@ -38,6 +38,10 @@ final class SpringTestSupport {
         return define(loader, binaryName, serviceBytes(binaryName));
     }
 
+    static Class<?> defineController(ClassLoader loader, String binaryName, String path) {
+        return define(loader, binaryName, controllerBytes(binaryName, path));
+    }
+
     static byte[] serviceBytes(String binaryName) {
         String internal = binaryName.replace('.', '/');
         ClassWriter writer = new ClassWriter(0);
@@ -57,6 +61,34 @@ final class SpringTestSupport {
         ping.visitInsn(Opcodes.ARETURN);
         ping.visitMaxs(1, 1);
         ping.visitEnd();
+        writer.visitEnd();
+        return writer.toByteArray();
+    }
+
+    static byte[] controllerBytes(String binaryName, String path) {
+        String internal = binaryName.replace('.', '/');
+        ClassWriter writer = new ClassWriter(0);
+        writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER, internal, null, "java/lang/Object", null);
+        AnnotationVisitor rest = writer.visitAnnotation("Lorg/springframework/web/bind/annotation/RestController;", true);
+        rest.visitEnd();
+        MethodVisitor ctor = writer.visitMethod(Opcodes.ACC_PUBLIC, "<init>", "()V", null, null);
+        ctor.visitCode();
+        ctor.visitVarInsn(Opcodes.ALOAD, 0);
+        ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false);
+        ctor.visitInsn(Opcodes.RETURN);
+        ctor.visitMaxs(1, 1);
+        ctor.visitEnd();
+        MethodVisitor handle = writer.visitMethod(Opcodes.ACC_PUBLIC, "handle", "()Ljava/lang/String;", null, null);
+        AnnotationVisitor get = handle.visitAnnotation("Lorg/springframework/web/bind/annotation/GetMapping;", true);
+        AnnotationVisitor values = get.visitArray("value");
+        values.visit(null, path);
+        values.visitEnd();
+        get.visitEnd();
+        handle.visitCode();
+        handle.visitLdcInsn("ok");
+        handle.visitInsn(Opcodes.ARETURN);
+        handle.visitMaxs(1, 1);
+        handle.visitEnd();
         writer.visitEnd();
         return writer.toByteArray();
     }

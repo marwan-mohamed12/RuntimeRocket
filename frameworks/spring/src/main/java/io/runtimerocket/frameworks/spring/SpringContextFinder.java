@@ -112,8 +112,8 @@ public final class SpringContextFinder {
                 if (ctx != null) {
                     found.add(ctx);
                 }
-            } catch (ReflectiveOperationException ignored) {
-                // classic WAR only
+            } catch (ReflectiveOperationException | LinkageError ignored) {
+                // classic WAR only; servlet types may be absent
             }
         }
         return found;
@@ -147,8 +147,8 @@ public final class SpringContextFinder {
                 if (ctx != null) {
                     found.add(ctx);
                 }
-            } catch (ReflectiveOperationException ignored) {
-                // no request in flight
+            } catch (ReflectiveOperationException | LinkageError ignored) {
+                // no request in flight; servlet types may be absent
             }
         }
         return found;
