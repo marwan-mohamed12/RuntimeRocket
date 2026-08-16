@@ -4,7 +4,7 @@ import java.util.Collection;
 import java.util.Locale;
 import java.util.Objects;
 
-/** Backend reload shapes that adapters may inspect. Hierarchy/enum/anonymous stay false in v1. */
+/** Backend reload shapes that adapters may inspect. */
 public final class Capabilities {
 
     public final boolean methodBody;
@@ -36,10 +36,7 @@ public final class Capabilities {
         return new Capabilities(false, false, false, false, false, false, false);
     }
 
-    /**
-     * Maps backend capability name tokens such as {@code METHOD_BODY} and {@code ADD_METHOD}.
-     * {@code hierarchyChanges}, {@code enumConstants}, and {@code anonymousRemap} stay false.
-     */
+    /** Maps tokens such as {@code METHOD_BODY}, {@code ADD_METHOD}, {@code ADD_FIELD}, and {@code ADD_CONSTRUCTOR}. */
     public static Capabilities fromNames(Collection<String> names) {
         if (names == null || names.isEmpty()) {
             return none();

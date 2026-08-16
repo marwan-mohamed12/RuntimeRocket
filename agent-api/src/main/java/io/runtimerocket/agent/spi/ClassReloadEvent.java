@@ -3,7 +3,7 @@ package io.runtimerocket.agent.spi;
 import java.util.List;
 import java.util.Objects;
 
-/** Fired after a successful define/redefine batch. Carries backend id, not the agent backend type. */
+/** Fired after a successful define/redefine batch. */
 public final class ClassReloadEvent {
 
     public final AdapterContext ctx;

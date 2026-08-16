@@ -89,10 +89,8 @@ public final class AdapterHost {
         if (type == null) {
             return;
         }
-        for (FrameworkAdapter adapter : adapters) {
-            if (disabled(adapter)) {
-                continue;
-            }
+        AdapterContext ctx = new LoaderContext(type.getClassLoader());
+        for (FrameworkAdapter adapter : eligible(ctx)) {
             try {
                 adapter.onNewClass(type);
             } catch (RuntimeException e) {
@@ -121,6 +119,9 @@ public final class AdapterHost {
 
     public void onAgentShutdown() {
         for (FrameworkAdapter adapter : adapters) {
+            if (disabled(adapter)) {
+                continue;
+            }
             try {
                 adapter.onAgentShutdown();
             } catch (RuntimeException e) {
@@ -252,5 +253,32 @@ public final class AdapterHost {
     @FunctionalInterface
     private interface OutcomeCall {
         AdapterOutcome run();
+    }
+
+    /** Probes {@code isAvailable} against the defining loader of a newly defined type. */
+    private static final class LoaderContext implements AdapterContext {
+        private final ClassLoader[] loaders;
+
+        LoaderContext(ClassLoader loader) {
+            this.loaders = loader == null ? new ClassLoader[0] : new ClassLoader[] {loader};
+        }
+
+        @Override
+        public ClassLoader[] applicationLoaders() {
+            return loaders;
+        }
+
+        @Override
+        public boolean isLateAttach() {
+            return false;
+        }
+
+        @Override
+        public void log(String level, String msg) {}
+
+        @Override
+        public <T> T peekService(Class<T> type) {
+            return null;
+        }
     }
 }

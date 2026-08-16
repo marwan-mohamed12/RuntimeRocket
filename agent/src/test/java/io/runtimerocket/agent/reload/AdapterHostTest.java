@@ -64,6 +64,16 @@ class AdapterHostTest {
         assertEquals(0, disabled.calls.get());
         assertEquals(0, unavailable.calls.get());
         assertEquals(1, active.calls.get());
+
+        host.onNewClass(String.class);
+        assertEquals(0, disabled.newClasses.get());
+        assertEquals(0, unavailable.newClasses.get());
+        assertEquals(1, active.newClasses.get());
+
+        host.onAgentShutdown();
+        assertEquals(0, disabled.shutdowns.get());
+        assertEquals(1, unavailable.shutdowns.get());
+        assertEquals(1, active.shutdowns.get());
     }
 
     @Test
@@ -122,6 +132,8 @@ class AdapterHostTest {
         private final int order;
         private final boolean throwOnReload;
         private final AtomicInteger calls = new AtomicInteger();
+        private final AtomicInteger newClasses = new AtomicInteger();
+        private final AtomicInteger shutdowns = new AtomicInteger();
         private boolean available = true;
 
         RecordingAdapter(String id, int order, boolean throwOnReload) {
@@ -157,6 +169,16 @@ class AdapterHostTest {
         @Override
         public AdapterOutcome onResourcesChanged(ResourceChangeEvent event) {
             return AdapterOutcome.ok(id);
+        }
+
+        @Override
+        public void onNewClass(Class<?> type) {
+            newClasses.incrementAndGet();
+        }
+
+        @Override
+        public void onAgentShutdown() {
+            shutdowns.incrementAndGet();
         }
     }
 
