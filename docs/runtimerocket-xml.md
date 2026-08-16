@@ -1,8 +1,10 @@
 # `runtimerocket.xml`
 
-Standalone agent configuration. The IDE plugin (later) writes one file per module into that
-module’s compiler output root so it is on the runtime classpath. The schema is independent of
-JRebel’s `rebel.xml`; this is not a copy of that XSD.
+Standalone agent configuration. Write one file per module (or pass `config=`) so the agent
+can watch output trees without the IDE. The IDE compile path sends class bytes over the
+loopback protocol and does not require this file. `:fixtures:two-module` emits one file per
+module from Gradle. The schema is independent of JRebel’s `rebel.xml`; this is not a copy of
+that XSD.
 
 ## Schema (version 1)
 

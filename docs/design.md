@@ -5,7 +5,7 @@
 | **Title** | RuntimeRocket — JRebel-style JVM reload for IntelliJ |
 | **Author** | RuntimeRocket maintainers (placeholder) |
 | **Date** | 2026-08-15 |
-| **Status** | Approved 2026-08-15 |
+| **Status** | Approved 2026-08-15; 0.1.0-SNAPSHOT implemented (PRs 1–12) |
 | **Audience** | Senior engineers implementing this repository |
 | **Workspace** | `F:\grok\RuntimeRocket` |
 
@@ -46,7 +46,7 @@ Pain points this design addresses:
 - Stock HotSwap is too narrow for real edits (new methods, new fields, new Spring beans).
 - JRebel is closed-source and commercial.
 - HotswapAgent is capable but GPL-2.0 (incompatible with an Apache-2.0 plugin we control), requires manual JDK/VM-option setup, and has no first-class IntelliJ flow-state UX (status, “you must restart”, run-config injection).
-- The current repo is empty (`README.md` title only). There is no build, no modules, no protocol. This document specifies them.
+- When this design was written the repo was empty (`README.md` title only). PRs 1–12 landed the modules, protocol, agent, plugin, Spring adapter, docs, and CI described here.
 
 ---
 
@@ -161,7 +161,7 @@ plugin.since.build=243
 plugin.until.build=262.*
 ```
 
-**Compatibility window (normative).** Oldest supported IDE is IntelliJ IDEA **2024.3** (build 243). Newest verified IDE is **2026.2** (build 262). `until-build=252.*` is forbidden — that is 2025.2 and current IDEs refuse it. Gradle wrapper is **9.0+** because Platform Plugin 2.18.1 requires it. `pluginVerifier` in PR 12 runs against `IC-2024.3` and `IC-2026.2`.
+**Compatibility window (normative).** Oldest supported IDE is IntelliJ IDEA **2024.3** (build 243). Newest verified IDE is **2026.2** (build 262). `until-build=252.*` is forbidden — that is 2025.2 and current IDEs refuse it. Gradle wrapper is **9.0+** because Platform Plugin 2.18.1 requires it. `pluginVerifier` in PR 12 runs against **`IC-2024.3`**. 2026.2 is a follow-up: IC installers ended at 2025.3; the unified `IntellijIdea` type needs a pinned 2026.2.x and a large extra download.
 
 **Toolchains (normative, PR 1).** `:protocol`, `:agent-api`, `:agent`, `:frameworks:spring`, `:fixtures:*`, `:integration-tests` set `java.toolchain` **17**. `:plugin` does **not** inherit that pin; `org.jetbrains.intellij.platform` sets **Java 21**. A root `subprojects { java { toolchain 17 } }` is forbidden.
 
@@ -1119,7 +1119,7 @@ Measured on a 16 GB Windows laptop, JBR 21, Spring Boot 4.1 sample with ~200 app
 | Plugin | IntelliJ Platform test framework (`BasePlatformTestCase`) for snapshot diff, XML generation, patcher VM-arg injection (no real UI). Debug-run test: add-method does not show stock HotSwap dialog. |
 | Manual | Script in README: open fixture, run, edit, build, watch tool window |
 
-CI: PR 5 adds a JBR job (`continue-on-error` if JBR is missing on the runner) so `assumeTrue` enhanced tests actually run somewhere before PR 12. PR 12 makes the JBR 17/21 matrix required. JBR 25 is `continue-on-error` verify. Matrix OS: `windows-latest`, `ubuntu-latest`, `macos-latest`.
+CI (PR 12): unit tests on `windows-latest`, `ubuntu-latest`, and `macos-latest` (`:protocol:test`, `:agent-api:test`, `:agent:test`, `:frameworks:spring:test`, `:plugin:test`, `:agent:shadowJar`). Required JBR **17** and **21** enhanced jobs run `:integration-tests:test`; `continue-on-error` applies **only** to the JBR `setup-java` step, not to test failure. JBR **25** is a `continue-on-error` job. `pluginVerifier` (`:plugin:verifyPlugin`) checks **`IC-2024.3` (required)**. `IC-2026.2` is **not resolvable**: IntelliJ IDEA Community installers ended at 2025.3. The replacement is `IntelliJPlatformType.IntellijIdea` + a 2026.2.x patch, which is a large extra download left as a **follow-up** so CI stays green. Explicit `ides { create(...) }`, not `recommended()`.
 
 ### 12. Risks
 
@@ -1287,7 +1287,7 @@ This is a new OSS plugin, not a gated SaaS feature. Rollout is **GitHub Releases
 | 0.0.x PRs 1–4 | Build skeleton, protocol, classifier, agent premain + standard redefine | Maintainers |
 | 0.1.0-alpha | Enhanced backend + IDE patcher + tool window, no Spring | Internal dogfood on `:fixtures:plain-java` |
 | 0.1.0-beta | Spring adapter (11a/11b), notifications, JBR consent + late attach | Volunteer testers, Windows + macOS |
-| 0.1.0 | Docs, LICENSE, CI matrix; **GitHub Release** (not Marketplace) | Public repo |
+| 0.1.0 | Docs, LICENSE, CI matrix; **GitHub Release** (not Marketplace). In-tree **0.1.0-SNAPSHOT** is dogfoodable (PRs 1–12). | Public repo |
 | 0.2.0 | More Spring: `@ConfigurationProperties`, `@Scheduled` / `@EventListener`, Jackson / `ReflectionUtils` flush (PR 14) | First post-0.1 priority |
 | 0.3.0 | Versioning backend experimental flag (PR 13) | Opt-in; after 0.2 Spring work |
 | Marketplace | After a **beta soak**, not 0.1.0 day-one (PR 17); `until-build=262.*` until 2026.3 is verified | JetBrains Marketplace |
@@ -1472,7 +1472,7 @@ Each PR is independently reviewable and mergeable on the current branch in `F:\g
 - **Title:** `docs: user README, architecture pointer, CI matrix, pluginVerifier`
 - **Files:** `README.md`, `docs/design.md` (already present — update any deltas), `docs/user-guide.md`, `.github/workflows/ci.yml`, leftover bugfixes
 - **Depends on:** PR 9, PR 11b
-- **Description:** End-to-end README (Windows PowerShell + macOS/Linux). CI: unit tests all OSes; required JBR 17/21 enhanced job; JBR 25 `continue-on-error`; `pluginVerifier` against `IC-2024.3` and `IC-2026.2`. Version 0.1.0-SNAPSHOT complete and dogfoodable.
+- **Description:** End-to-end README (Windows PowerShell + macOS/Linux). CI: unit tests all OSes; required JBR 17/21 enhanced job; JBR 25 `continue-on-error`; `pluginVerifier` against `IC-2024.3` (2026.2 follow-up: IC installers ended at 2025.3). Version 0.1.0-SNAPSHOT complete and dogfoodable.
 
 ### Follow-up PRs (post-0.1, not required to start)
 

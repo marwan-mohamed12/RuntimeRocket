@@ -1,3 +1,4 @@
+import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 
 plugins {
@@ -62,6 +63,14 @@ intellijPlatform {
         ideaVersion {
             sinceBuild = providers.gradleProperty("plugin.since.build")
             untilBuild = providers.gradleProperty("plugin.until.build")
+        }
+    }
+    // Floor only. recommended() would download every IDE in 243–262.
+    // IC installers ended at 2025.3; IntelliJ IDEA 2026.2 needs
+    // IntelliJPlatformType.IntellijIdea and a ~GB download — follow-up.
+    pluginVerification {
+        ides {
+            create(IntelliJPlatformType.IntellijIdeaCommunity, "2024.3")
         }
     }
 }
