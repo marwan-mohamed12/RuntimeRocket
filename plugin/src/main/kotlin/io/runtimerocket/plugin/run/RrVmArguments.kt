@@ -9,15 +9,10 @@ object RrVmArguments {
     const val ENHANCED_REDEFINITION = "-XX:+AllowEnhancedClassRedefinition"
 
     fun javaAgent(agentJar: Path, tokenFile: Path, logLevel: String): String {
-        return "-javaagent:${quote(agentJar)}=tokenFile=${quote(tokenFile)},log=$logLevel"
-    }
-
-    fun quote(path: Path): String {
-        val raw = path.toAbsolutePath().toString()
-        if (raw.length >= 2 && raw.startsWith("\"") && raw.endsWith("\"")) {
-            return raw
-        }
-        return "\"$raw\""
+        val jar = agentJar.toAbsolutePath().toString()
+        val token = tokenFile.toAbsolutePath().toString()
+        // One ParametersList item. IntelliJ quotes the whole argv; do not embed quotes in paths.
+        return "-javaagent:$jar=tokenFile=$token,log=$logLevel"
     }
 
     fun build(agentJar: Path, tokenFile: Path, logLevel: String, enhanced: Boolean): List<String> {

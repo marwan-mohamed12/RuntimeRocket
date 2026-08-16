@@ -24,6 +24,8 @@ class RrJavaProgramPatcherTest {
         val args = params.vmParametersList.parameters
 
         val agentArg = args.single { it.startsWith("-javaagent:") }
+        assertFalse(agentArg.startsWith("-javaagent:\""), agentArg)
+        assertFalse('"' in agentArg, agentArg)
         assertTrue(agentArg.contains("tokenFile="), agentArg)
         assertFalse(RrVmArguments.rawTokenOnCommandLine(agentArg), agentArg)
         assertFalse(args.any { it.startsWith("-Drr.token=") }, args.toString())

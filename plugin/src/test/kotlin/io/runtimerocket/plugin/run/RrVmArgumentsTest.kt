@@ -46,15 +46,17 @@ class RrVmArgumentsTest {
     }
 
     @Test
-    fun quotesAgentAndTokenPathsThatContainSpaces() {
+    fun javaAgentListItemDoesNotEmbedQuotesAroundJarPath() {
         val arg = RrVmArguments.javaAgent(agent, tokenFile, "info")
-        val jarQuoted = RrVmArguments.quote(agent)
-        val tokenQuoted = RrVmArguments.quote(tokenFile)
-        assertTrue(agent.toAbsolutePath().toString().contains("Program Files"), agent.toString())
-        assertTrue(tokenFile.toAbsolutePath().toString().contains("foo bar"), tokenFile.toString())
-        assertTrue(arg.contains(jarQuoted), arg)
-        assertTrue(arg.contains("tokenFile=$tokenQuoted"), arg)
-        assertTrue(jarQuoted.startsWith("\"") && jarQuoted.endsWith("\""), jarQuoted)
-        assertTrue(tokenQuoted.startsWith("\"") && tokenQuoted.endsWith("\""), tokenQuoted)
+        val jar = agent.toAbsolutePath().toString()
+        val token = tokenFile.toAbsolutePath().toString()
+        assertTrue(jar.contains("Program Files"), jar)
+        assertTrue(token.contains("foo bar"), token)
+        assertTrue(arg.startsWith("-javaagent:"), arg)
+        assertFalse(arg.startsWith("-javaagent:\""), arg)
+        assertFalse(arg.contains("\"$jar\""), arg)
+        assertTrue(arg.contains("-javaagent:$jar="), arg)
+        assertTrue(arg.contains("tokenFile=$token"), arg)
+        assertFalse('"' in arg, arg)
     }
 }
