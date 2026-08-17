@@ -20,6 +20,7 @@ object RrReloadPlan {
         SEND_FAILED,
         NOT_ATTACHED,
         REAL_ERRORS,
+        TIMED_OUT,
     }
 
     fun outcomeOf(status: String?, emptyDiff: Boolean, attached: Boolean): Outcome {
@@ -42,13 +43,13 @@ object RrReloadPlan {
         return when (step) {
             Step.HOT_RELOAD ->
                 when (outcome) {
-                    Outcome.SUCCESS, Outcome.PARTIAL, Outcome.RESTART_REQUIRED, Outcome.NOT_ATTACHED, Outcome.REAL_ERRORS ->
+                    Outcome.SUCCESS, Outcome.PARTIAL, Outcome.RESTART_REQUIRED, Outcome.NOT_ATTACHED, Outcome.REAL_ERRORS, Outcome.TIMED_OUT ->
                         Step.DONE
                     Outcome.EMPTY, Outcome.COMPILE_FAILED, Outcome.SEND_FAILED -> Step.BUILD
                 }
             Step.BUILD ->
                 when (outcome) {
-                    Outcome.SUCCESS, Outcome.PARTIAL, Outcome.RESTART_REQUIRED, Outcome.NOT_ATTACHED, Outcome.REAL_ERRORS ->
+                    Outcome.SUCCESS, Outcome.PARTIAL, Outcome.RESTART_REQUIRED, Outcome.NOT_ATTACHED, Outcome.REAL_ERRORS, Outcome.TIMED_OUT ->
                         Step.DONE
                     Outcome.EMPTY, Outcome.COMPILE_FAILED, Outcome.SEND_FAILED -> Step.DIAGNOSE
                 }
@@ -64,6 +65,8 @@ object RrReloadPlan {
                 "Stopped — compiling again will not apply this edit. Restart the process."
             Outcome.NOT_ATTACHED -> "App is not attached. Start it and use Attach."
             Outcome.REAL_ERRORS -> "Compile still has real errors. Fix the sources, then Reload."
+            Outcome.TIMED_OUT ->
+                "Build timed out. Wait for the IDE compile to finish, then Reload — or Recompile the module by hand."
             else -> null
         }
     }

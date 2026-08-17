@@ -43,6 +43,17 @@ class RrCompileCycleTest {
     }
 
     @Test
+    fun suppressedBuildFinishedClearsCompilingAndDoesNotArmVfs() {
+        val cycle = RrCompileCycle()
+        cycle.onBuildStarted()
+        assertTrue(cycle.compiling)
+        assertEquals(RrCompileCycle.BuildFinish.RESTORE_IDLE, cycle.onBuildFinished(suppressAutoReload = true))
+        assertFalse(cycle.compiling)
+        assertFalse(cycle.shouldScanOutputs())
+        assertFalse(cycle.shouldScheduleVfs())
+    }
+
+    @Test
     fun successfulCompileListenerDoesNotLeaveVfsArmed() {
         val cycle = RrCompileCycle()
         cycle.onBuildStarted()

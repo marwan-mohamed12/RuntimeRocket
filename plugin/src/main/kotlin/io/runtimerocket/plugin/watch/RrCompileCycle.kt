@@ -42,14 +42,22 @@ internal class RrCompileCycle {
         return vfsArmed
     }
 
-    fun onBuildFinished(): BuildFinish {
+    fun onBuildFinished(suppressAutoReload: Boolean = false): BuildFinish {
         compiling = false
         if (listenerHandled) {
             vfsArmed = false
             return if (reloadStarted) BuildFinish.NOTHING else BuildFinish.RESTORE_IDLE
         }
+        if (suppressAutoReload) {
+            vfsArmed = false
+            return BuildFinish.RESTORE_IDLE
+        }
         vfsArmed = true
         return BuildFinish.ARM_VFS
+    }
+
+    fun releaseCompileLock() {
+        compiling = false
     }
 
     /** Gradle path: scan outputs after settle; do not wait for later VFS events. */
