@@ -7,7 +7,11 @@ import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.project.DumbAware
 import io.runtimerocket.plugin.watch.RrReloadService
 
-class ReloadNowAction : AnAction(), DumbAware {
+class ReloadNowAction : AnAction(
+    "Reload Now",
+    "Push last compile output to the agent",
+    RrIcons.Reload,
+), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
 
     override fun actionPerformed(e: AnActionEvent) {
