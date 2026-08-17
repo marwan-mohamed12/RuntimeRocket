@@ -120,7 +120,16 @@ class AttachRuntimeRocketAction : AnAction(
                 RrAttachStrategy.Path.LOAD_AGENT -> {}
             }
             val settings = RrProjectSettings.getInstance(project)
-            val launch = TokenFactory.newLaunch()
+            val launch =
+                try {
+                    TokenFactory.newLaunch()
+                } catch (e: Exception) {
+                    return RrLateAttach.Result(
+                        ok = false,
+                        pid = parsed,
+                        error = "Failed to attach RuntimeRocket to pid $parsed: ${e.message ?: e.javaClass.simpleName}",
+                    )
+                }
             val agentJar =
                 try {
                     AgentJarLocator.ensureUnpacked()
