@@ -9,7 +9,7 @@ import io.runtimerocket.plugin.watch.RrReloadService
 
 class ReloadNowAction : AnAction(
     "Reload Now",
-    "Push last compile output to the agent",
+    "Hot-reload first, then build and diagnose only if needed",
     RrIcons.Reload,
 ), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT

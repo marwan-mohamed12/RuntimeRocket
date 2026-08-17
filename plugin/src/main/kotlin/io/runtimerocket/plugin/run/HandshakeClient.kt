@@ -38,6 +38,10 @@ class HandshakeClient(
         return findOnce(expectedPid, expectedToken, startedAfter)
     }
 
+    fun findByPid(pid: Long): HandshakeDocument? {
+        return readDocument(directory.resolve("$pid.json"))
+    }
+
     fun findOnce(expectedPid: Long?, expectedToken: String, startedAfter: Instant): HandshakeDocument? {
         if (expectedPid != null) {
             val byPid = readIfMatches(directory.resolve("$expectedPid.json"), expectedToken, startedAfter)
@@ -59,7 +63,7 @@ class HandshakeClient(
         return null
     }
 
-    private fun readIfMatches(file: Path, expectedToken: String, startedAfter: Instant): HandshakeDocument? {
+    private fun readDocument(file: Path): HandshakeDocument? {
         if (!Files.isRegularFile(file)) {
             return null
         }
@@ -69,12 +73,15 @@ class HandshakeClient(
             } catch (_: Exception) {
                 return null
             }
-        val doc =
-            try {
-                HandshakeDocument.parse(json)
-            } catch (_: Exception) {
-                return null
-            }
+        return try {
+            HandshakeDocument.parse(json)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun readIfMatches(file: Path, expectedToken: String, startedAfter: Instant): HandshakeDocument? {
+        val doc = readDocument(file) ?: return null
         if (!tokenEquals(expectedToken, doc.token)) {
             return null
         }

@@ -32,6 +32,17 @@ class RrReloadHistory {
     var lastMissingOutput: String? = null
 
     @Volatile
+    var lastSteps: List<String> = emptyList()
+
+    fun beginSteps() {
+        lastSteps = emptyList()
+    }
+
+    fun addStep(line: String) {
+        lastSteps = lastSteps + line
+    }
+
+    @Volatile
     var restartBannerGeneration: Int = 0
         private set
 

@@ -35,6 +35,13 @@ object ModuleOutputLocator {
     val GRADLE_TEST_RESOURCE_DIRS = listOf("build/resources/test")
     val MAVEN_CLASS_DIRS = listOf("target/classes")
     val MAVEN_TEST_CLASS_DIRS = listOf("target/test-classes")
+    val HYBRIS_CLASS_DIRS =
+        listOf(
+            "eclipsebin",
+            "classes",
+            "backoffice/eclipsebin",
+            "web/webroot/WEB-INF/classes",
+        )
 
     data class LocatedOutputs(
         val roots: List<OutputRoot>,
@@ -88,8 +95,9 @@ object ModuleOutputLocator {
         }
         val gradle = isGradle(module)
         val maven = isMaven(module)
+        val hybris = isHybris(module)
         for (contentRoot in contentRoots(module)) {
-            for (relative in wellKnownRelativeDirs(includeTests, gradle, maven)) {
+            for (relative in wellKnownRelativeDirs(includeTests, gradle, maven, hybris || isHybrisRoot(contentRoot))) {
                 addIfPresent(found, contentRoot.resolve(relative), module.name)
             }
         }
@@ -101,13 +109,19 @@ object ModuleOutputLocator {
         includeTests: Boolean,
         gradle: Boolean,
         maven: Boolean,
+        hybris: Boolean = false,
     ): List<Path> {
-        return wellKnownRelativeDirs(includeTests, gradle, maven)
+        return wellKnownRelativeDirs(includeTests, gradle, maven, hybris)
             .map { contentRoot.resolve(it) }
             .filter { Files.isDirectory(it) }
     }
 
-    fun wellKnownRelativeDirs(includeTests: Boolean, gradle: Boolean, maven: Boolean): List<String> {
+    fun wellKnownRelativeDirs(
+        includeTests: Boolean,
+        gradle: Boolean,
+        maven: Boolean,
+        hybris: Boolean = false,
+    ): List<String> {
         val dirs = mutableListOf<String>()
         if (gradle) {
             dirs.addAll(GRADLE_CLASS_DIRS)
@@ -123,6 +137,9 @@ object ModuleOutputLocator {
                 dirs.addAll(MAVEN_TEST_CLASS_DIRS)
             }
         }
+        if (hybris) {
+            dirs.addAll(HYBRIS_CLASS_DIRS)
+        }
         return dirs
     }
 
@@ -132,6 +149,14 @@ object ModuleOutputLocator {
 
     fun isMaven(module: Module): Boolean {
         return ExternalSystemApiUtil.isExternalSystemAwareModule(MAVEN, module)
+    }
+
+    fun isHybris(module: Module): Boolean {
+        return contentRoots(module).any { isHybrisRoot(it) }
+    }
+
+    fun isHybrisRoot(contentRoot: Path): Boolean {
+        return Files.isRegularFile(contentRoot.resolve("extensioninfo.xml"))
     }
 
     private fun affectedModules(project: Project, context: CompileContext?): Array<Module> {

@@ -161,7 +161,15 @@ and [hybris.md](hybris.md).
 ## Attach RuntimeRocket (late attach)
 
 **Tools | Attach RuntimeRocket** (also on the tool-window toolbar) lists
-local JVMs and loads the agent via `VirtualMachine.attach`.
+local JVMs, with **Hybris / Tomcat** first. IntelliJ and Gradle daemons
+are hidden. If the agent is already in that JVM, Attach reconnects
+instead of loading it a second time.
+
+**Reload Now** saves editors, pushes any new `.class` files, then
+incremental-builds the focused module only if there was nothing to send
+or the send failed. It does not detach a live session when a compile or
+reload fails. Output folders are also scanned about every 1.5s while
+attached (ant / Gradle writes included).
 
 Requirements:
 

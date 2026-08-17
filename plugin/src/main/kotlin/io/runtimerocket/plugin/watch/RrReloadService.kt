@@ -4,10 +4,12 @@ import com.intellij.compiler.server.BuildManagerListener
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.compiler.CompileContext
-import com.intellij.openapi.compiler.CompilerManager
 import com.intellij.openapi.components.Service
+import com.intellij.openapi.fileEditor.FileDocumentManager
+import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleUtilCore
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.EditorNotifications
 import io.runtimerocket.plugin.run.RrSessionManager
@@ -16,8 +18,10 @@ import io.runtimerocket.plugin.settings.RrProjectSettings
 import io.runtimerocket.plugin.ui.RrNotifier
 import io.runtimerocket.plugin.ui.RrReloadPresenter
 import io.runtimerocket.plugin.ui.RrStatus
+import io.runtimerocket.plugin.ui.RrUiRefresh
 import io.runtimerocket.protocol.ReloadRequest
 import io.runtimerocket.protocol.ReloadResult
+import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Instant
 import java.util.UUID
@@ -33,11 +37,13 @@ class RrReloadService(private val project: Project) {
     private val snapshot = OutputSnapshot()
     private val snapshotted = AtomicBoolean(false)
     private val forceAfterCompile = AtomicBoolean(false)
+    private val suppressAutoReload = AtomicBoolean(false)
     private val inFlight = AtomicBoolean(false)
     private val pending = AtomicBoolean(false)
     private val pendingTrigger = AtomicReference<String?>(null)
     private val debounceLock = Any()
     private var gradleScanTask: ScheduledFuture<*>? = null
+    private var watchTask: ScheduledFuture<*>? = null
     internal val compileCycle = RrCompileCycle()
     private val executor: ScheduledExecutorService =
         Executors.newSingleThreadScheduledExecutor { runnable ->
@@ -57,7 +63,10 @@ class RrReloadService(private val project: Project) {
         cancelScheduledWork()
         if (failed) {
             forceAfterCompile.set(false)
-            RrStatus.idle(project, "Compile failed — nothing reloaded")
+            keepAttachedAfterCompileFailure()
+            return
+        }
+        if (suppressAutoReload.get()) {
             return
         }
         val force = forceAfterCompile.getAndSet(false)
@@ -71,29 +80,17 @@ class RrReloadService(private val project: Project) {
     }
 
     fun onOutputChanged(paths: Collection<Path>) {
-        // Gradle writes during compile are discarded here on purpose. When the
-        // compile listener does not fire, ARM_VFS scans outputs after a settle delay.
-        if (paths.isEmpty() || !compileCycle.shouldScheduleVfs()) {
+        if (paths.isEmpty() || compileCycle.compiling || !RrSessionManager.getInstance(project).hasActiveSession()) {
             return
         }
+        if (!RrProjectSettings.getInstance(project).autoReloadOnSuccessfulCompile) {
+            return
+        }
+        scheduleWatchScan()
     }
 
     fun reloadNow(file: VirtualFile?) {
-        val compiler = CompilerManager.getInstance(project)
-        val module = file?.let { ModuleUtilCore.findModuleForFile(it, project) }
-        val scope =
-            if (module != null) {
-                compiler.createModulesCompileScope(arrayOf(module), false)
-            } else {
-                compiler.createProjectCompileScope(project)
-            }
-        if (!compiler.isUpToDate(scope)) {
-            forceAfterCompile.set(true)
-            compiler.compile(scope, null)
-            return
-        }
-        compileCycle.markReloadStarted()
-        executor.execute { pushDiff(context = null, trigger = ReloadRequest.TRIGGER_MANUAL, startedAt = System.nanoTime()) }
+        executor.execute { runOrchestratedReload(file) }
     }
 
     fun installBuildListener() {
@@ -113,6 +110,9 @@ class RrReloadService(private val project: Project) {
                     if (project != this@RrReloadService.project) {
                         return
                     }
+                    if (suppressAutoReload.get()) {
+                        return
+                    }
                     when (compileCycle.onBuildFinished()) {
                         RrCompileCycle.BuildFinish.RESTORE_IDLE -> restoreAfterBuild()
                         RrCompileCycle.BuildFinish.ARM_VFS -> armGradleVfsWindow()
@@ -121,6 +121,90 @@ class RrReloadService(private val project: Project) {
                 }
             },
         )
+        startOutputWatch()
+    }
+
+    internal fun runOrchestratedReload(file: VirtualFile?) {
+        val history = history()
+        history.beginSteps()
+        val module = file?.let { ModuleUtilCore.findModuleForFile(it, project) }
+        saveDocuments()
+        refreshOutputRoots()
+
+        var step = RrReloadPlan.Step.HOT_RELOAD
+        var includeDependents = false
+        var preferDelegated = module != null && ModuleOutputLocator.isGradle(module)
+        while (step != RrReloadPlan.Step.DONE) {
+            history.addStep(RrReloadPlan.stepTitle(step))
+            publishSteps()
+            val outcome =
+                when (step) {
+                    RrReloadPlan.Step.HOT_RELOAD -> hotReload()
+                    RrReloadPlan.Step.BUILD -> {
+                        val built = buildModule(module, includeDependents, preferDelegated)
+                        if (!built.ok) {
+                            history.addStep("   ${built.message ?: "compile failed"}")
+                            publishSteps()
+                            RrReloadPlan.Outcome.COMPILE_FAILED
+                        } else {
+                            refreshOutputRoots()
+                            hotReload()
+                        }
+                    }
+                    RrReloadPlan.Step.DIAGNOSE -> {
+                        saveDocuments()
+                        refreshOutputRoots()
+                        includeDependents = true
+                        preferDelegated = true
+                        val built = buildModule(module, includeDependents = true, preferDelegated = true)
+                        if (!built.ok) {
+                            history.addStep("   ${built.message ?: "still failing"}")
+                            publishSteps()
+                            recordCompileFailure(built.message ?: "compile still has errors")
+                            RrReloadPlan.Outcome.REAL_ERRORS
+                        } else {
+                            refreshOutputRoots()
+                            hotReload()
+                        }
+                    }
+                    RrReloadPlan.Step.DONE -> RrReloadPlan.Outcome.SUCCESS
+                }
+            val reason = RrReloadPlan.stopReason(outcome)
+            if (reason != null) {
+                history.addStep("   $reason")
+                publishSteps()
+            }
+            step = RrReloadPlan.next(step, outcome)
+        }
+    }
+
+    private fun hotReload(): RrReloadPlan.Outcome {
+        val manager = RrSessionManager.getInstance(project)
+        if (!manager.hasActiveSession()) {
+            RrStatus.notAttached(project)
+            RrNotifier.notAttachedCompile(project)
+            return RrReloadPlan.Outcome.NOT_ATTACHED
+        }
+        val startedAt = System.nanoTime()
+        val result = runPush(context = null, trigger = ReloadRequest.TRIGGER_MANUAL, startedAt = startedAt)
+        return when {
+            result == null -> RrReloadPlan.Outcome.EMPTY
+            else ->
+                RrReloadPlan.outcomeOf(
+                    result.status,
+                    emptyDiff = false,
+                    attached = manager.hasActiveSession(),
+                )
+        }
+    }
+
+    private fun buildModule(module: Module?, includeDependents: Boolean, preferDelegated: Boolean): RrModuleBuilder.Outcome {
+        suppressAutoReload.set(true)
+        return try {
+            RrModuleBuilder.make(project, module, includeDependents, preferDelegated)
+        } finally {
+            suppressAutoReload.set(false)
+        }
     }
 
     private fun armGradleVfsWindow() {
@@ -129,25 +213,83 @@ class RrReloadService(private val project: Project) {
             restoreAfterBuild()
             return
         }
+        scheduleWatchScan(VFS_ARM_MS)
+    }
+
+    private fun startOutputWatch() {
+        synchronized(debounceLock) {
+            if (watchTask != null) {
+                return
+            }
+            watchTask =
+                executor.scheduleWithFixedDelay(
+                    { scanOutputsIfIdle(ReloadRequest.TRIGGER_WATCH) },
+                    WATCH_PERIOD_MS,
+                    WATCH_PERIOD_MS,
+                    TimeUnit.MILLISECONDS,
+                )
+        }
+    }
+
+    private fun scheduleWatchScan(delayMs: Long = WATCH_DEBOUNCE_MS) {
         synchronized(debounceLock) {
             gradleScanTask?.cancel(false)
             gradleScanTask =
                 executor.schedule(
-                    {
-                        compileCycle.markReloadStarted()
-                        compileCycle.disarmVfs()
-                        pushDiff(context = null, trigger = ReloadRequest.TRIGGER_COMPILE, startedAt = System.nanoTime())
-                    },
-                    VFS_ARM_MS,
+                    { scanOutputsIfIdle(ReloadRequest.TRIGGER_WATCH) },
+                    delayMs,
                     TimeUnit.MILLISECONDS,
                 )
         }
+    }
+
+    private fun scanOutputsIfIdle(trigger: String) {
+        if (compileCycle.compiling || suppressAutoReload.get() || inFlight.get()) {
+            return
+        }
+        if (!RrSessionManager.getInstance(project).hasActiveSession()) {
+            return
+        }
+        if (!RrProjectSettings.getInstance(project).autoReloadOnSuccessfulCompile) {
+            return
+        }
+        compileCycle.markReloadStarted()
+        compileCycle.disarmVfs()
+        pushDiff(context = null, trigger = trigger, startedAt = System.nanoTime())
     }
 
     private fun restoreAfterBuild() {
         val phase = RrStatus.get(project).phase
         if (phase == RrStatus.Phase.COMPILING) {
             restoreIdle()
+        }
+    }
+
+    private fun keepAttachedAfterCompileFailure() {
+        history().addStep("Compile failed — nothing reloaded")
+        recordCompileFailure("Compile failed — nothing reloaded")
+        restoreIdle()
+        publishSteps()
+    }
+
+    private fun recordCompileFailure(message: String) {
+        history().record(
+            RrReloadHistory.Event(
+                time = Instant.now(),
+                classCount = 0,
+                resourceCount = 0,
+                status = ReloadResult.FAILED,
+                durationMs = 0,
+                latencyMs = 0,
+                message = message,
+                classes = emptyList(),
+                adapters = emptyList(),
+                trigger = ReloadRequest.TRIGGER_MANUAL,
+            ),
+        )
+        ApplicationManager.getApplication().invokeLater {
+            EditorNotifications.getInstance(project).updateAllNotifications()
+            project.messageBus.syncPublisher(RrUiRefresh.TOPIC).refresh()
         }
     }
 
@@ -172,7 +314,7 @@ class RrReloadService(private val project: Project) {
         }
     }
 
-    private fun runPush(context: CompileContext?, trigger: String, startedAt: Long) {
+    private fun runPush(context: CompileContext?, trigger: String, startedAt: Long): ReloadResult? {
         try {
             val located = currentLocated(context)
             if (!snapshotted.get()) {
@@ -183,28 +325,29 @@ class RrReloadService(private val project: Project) {
             val peek = snapshot.peek(located.roots)
             if (peek.diff.isEmpty()) {
                 restoreIdle()
-                return
+                return null
             }
             if (!RrSessionManager.getInstance(project).hasActiveSession()) {
                 RrStatus.notAttached(project)
                 RrNotifier.notAttachedCompile(project)
-                return
+                return failedResult("no attached session")
             }
             val request = ReloadRequestFactory.fromDiff(peek.diff, trigger)
-            send(request, peek, startedAt)
+            return send(request, peek, startedAt)
         } catch (e: Exception) {
             publishFailure("reload failed: ${e.message ?: e.javaClass.simpleName}", startedAt)
+            return failedResult(e.message)
         }
     }
 
-    private fun send(request: ReloadRequest, peek: OutputSnapshot.Peek, startedAt: Long) {
+    private fun send(request: ReloadRequest, peek: OutputSnapshot.Peek, startedAt: Long): ReloadResult {
         RrStatus.reloading(project, request.classes?.size ?: 0)
         val results =
             try {
                 RrSessionManager.getInstance(project).sendReload(request)
             } catch (e: Exception) {
                 publishFailure("agent communication failed: ${e.message ?: e.javaClass.simpleName}", startedAt)
-                return
+                return failedResult(e.message)
             }
         val result = merge(results)
         val latencyMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt)
@@ -214,6 +357,7 @@ class RrReloadService(private val project: Project) {
         }
         record(result, request, latencyMs)
         render(result, latencyMs, request.classes?.size ?: peek.diff.classes.size)
+        return result
     }
 
     private fun applied(status: String?): Boolean {
@@ -222,10 +366,7 @@ class RrReloadService(private val project: Project) {
 
     private fun merge(results: List<ReloadResult>): ReloadResult {
         if (results.isEmpty()) {
-            val empty = ReloadResult()
-            empty.status = ReloadResult.FAILED
-            empty.message = "no attached session"
-            return empty
+            return failedResult("no attached session")
         }
         val worst = results.maxBy { rank(it.status) }
         if (results.size == 1) {
@@ -282,15 +423,19 @@ class RrReloadService(private val project: Project) {
             ReloadResult.SUCCESS -> RrStatus.success(project, latencyMs)
             ReloadResult.PARTIAL -> RrStatus.partial(project, latencyMs)
             ReloadResult.RESTART_REQUIRED -> RrStatus.restartRequired(project)
-            else -> RrStatus.failed(project)
+            else -> {
+                if (RrSessionManager.getInstance(project).hasActiveSession()) {
+                    RrStatus.failed(project)
+                } else {
+                    RrStatus.notAttached(project)
+                }
+            }
         }
         RrNotifier.reloadResult(project, decision)
     }
 
     private fun publishFailure(message: String, startedAt: Long) {
-        val result = ReloadResult()
-        result.status = ReloadResult.FAILED
-        result.message = message
+        val result = failedResult(message)
         val latencyMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt)
         val request = ReloadRequest()
         request.trigger = ReloadRequest.TRIGGER_COMPILE
@@ -308,14 +453,47 @@ class RrReloadService(private val project: Project) {
     }
 
     private fun currentLocated(context: CompileContext?): ModuleOutputLocator.LocatedOutputs {
-        val includeTests = RrProjectSettings.getInstance(project).includeTests
-        return ReadAction.compute<ModuleOutputLocator.LocatedOutputs, RuntimeException> {
-            ModuleOutputLocator.locate(project, context, includeTests)
+        val settings = RrProjectSettings.getInstance(project)
+        val located =
+            ReadAction.compute<ModuleOutputLocator.LocatedOutputs, RuntimeException> {
+                ModuleOutputLocator.locate(project, context, settings.includeTests)
+            }
+        val extras =
+            settings.extraWatchDirs.mapNotNull { raw ->
+                val path = Path.of(raw.trim()).toAbsolutePath().normalize()
+                if (Files.isDirectory(path)) OutputRoot(path, "extra") else null
+            }
+        if (extras.isEmpty()) {
+            return located
         }
+        return ModuleOutputLocator.LocatedOutputs(located.roots + extras, located.missingModules)
     }
 
     private fun noteMissing(located: ModuleOutputLocator.LocatedOutputs) {
         history().lastMissingOutput = ModuleOutputLocator.formatMissingOutput(located)
+    }
+
+    private fun saveDocuments() {
+        val app = ApplicationManager.getApplication()
+        val run = { FileDocumentManager.getInstance().saveAllDocuments() }
+        if (app.isDispatchThread) {
+            run()
+        } else {
+            app.invokeAndWait(run)
+        }
+    }
+
+    private fun refreshOutputRoots() {
+        val roots = currentLocated(null).roots
+        for (root in roots) {
+            LocalFileSystem.getInstance().refreshAndFindFileByIoFile(root.path.toFile())?.refresh(false, true)
+        }
+    }
+
+    private fun publishSteps() {
+        ApplicationManager.getApplication().invokeLater {
+            project.messageBus.syncPublisher(RrUiRefresh.TOPIC).refresh()
+        }
     }
 
     private fun cancelScheduledWork() {
@@ -329,9 +507,18 @@ class RrReloadService(private val project: Project) {
 
     companion object {
         const val VFS_ARM_MS = 400L
+        const val WATCH_DEBOUNCE_MS = 400L
+        const val WATCH_PERIOD_MS = 1_500L
 
         fun getInstance(project: Project): RrReloadService {
             return project.getService(RrReloadService::class.java)
+        }
+
+        internal fun failedResult(message: String?): ReloadResult {
+            val result = ReloadResult()
+            result.status = ReloadResult.FAILED
+            result.message = message
+            return result
         }
     }
 }

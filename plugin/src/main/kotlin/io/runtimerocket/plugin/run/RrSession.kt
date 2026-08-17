@@ -41,7 +41,19 @@ class RrSession(
         next.connect()
         client = next
         connected = true
+        closed = false
         return next
+    }
+
+    fun reconnect(): RrAgentClient {
+        try {
+            client?.close()
+        } catch (_: Exception) {
+        }
+        client = null
+        connected = false
+        closed = false
+        return connect()
     }
 
     fun sendReload(request: ReloadRequest): ReloadResult {

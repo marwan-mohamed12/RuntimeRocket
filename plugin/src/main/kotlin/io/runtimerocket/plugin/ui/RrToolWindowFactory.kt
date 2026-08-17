@@ -158,7 +158,7 @@ class RrToolWindowPanel(private val project: Project) : SimpleToolWindowPanel(tr
 
         val history = RrReloadHistory.getInstance(project)
         val latest = history.latest()
-        applySegments(lastResult, RrConsoleFormatter.lastResult(latest, history.lastMissingOutput))
+        applySegments(lastResult, RrConsoleFormatter.lastResult(latest, history.lastMissingOutput, history.lastSteps))
         lastResult.background = RrUiColors.lastResultTint(latest?.status)
         lastResultCard.background = lastResult.background
         lastResultCard.border =

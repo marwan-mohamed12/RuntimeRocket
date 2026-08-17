@@ -46,17 +46,14 @@ class AttachRuntimeRocketAction : AnAction(
             val self = ProcessHandle.current().pid().toString()
             val choices =
                 try {
-                    VirtualMachine.list()
-                        .filter { it.id() != self }
-                        .map { RrLateAttach.formatVmChoice(it) }
-                        .toTypedArray()
+                    RrJvmClassifier.chooserLines(RrJvmClassifier.choices(VirtualMachine.list(), self)).toTypedArray()
                 } catch (_: Throwable) {
                     emptyArray()
                 }
-            val initial = choices.firstOrNull().orEmpty()
+            val initial = RrJvmClassifier.defaultSelection(choices.toList())
             val selected =
                 Messages.showEditableChooseDialog(
-                    "Select a local JVM or enter a process id",
+                    "Pick the application JVM.\nHybris is labeled “Hybris / Tomcat”. IntelliJ and Gradle daemons are hidden.",
                     RrLateAttach.ACTION_TEXT,
                     Messages.getQuestionIcon(),
                     choices,
@@ -103,6 +100,25 @@ class AttachRuntimeRocketAction : AnAction(
             if (parsed == null) {
                 return RrLateAttach.Result(ok = false, pid = pidRaw.trim(), error = RrLateAttach.invalidPidMessage(pidRaw))
             }
+            val pid = parsed.toLong()
+            val manager = RrSessionManager.getInstance(project)
+            val existingSession = manager.sessionByPid(pid)
+            val existingHandshake = handshakeClient.findByPid(pid)
+            when (RrAttachStrategy.decide(existingSession != null, existingHandshake != null)) {
+                RrAttachStrategy.Path.REUSE_SESSION -> {
+                    val session = existingSession!!
+                    return if (manager.reconnect(session)) {
+                        RrReloadService.getInstance(project).baseline()
+                        RrLateAttach.Result(ok = true, pid = parsed, handshake = session.handshake, token = session.token)
+                    } else {
+                        connectFromHandshake(project, parsed, existingHandshake ?: session.handshake)
+                    }
+                }
+                RrAttachStrategy.Path.RECONNECT_HANDSHAKE -> {
+                    return connectFromHandshake(project, parsed, existingHandshake!!)
+                }
+                RrAttachStrategy.Path.LOAD_AGENT -> {}
+            }
             val settings = RrProjectSettings.getInstance(project)
             val launch = TokenFactory.newLaunch()
             val agentJar =
@@ -119,15 +135,26 @@ class AttachRuntimeRocketAction : AnAction(
             val loaded = RrLateAttach.attach(parsed, agentJar, launch.file, settings.logLevel, attachFn)
             if (!loaded.ok) {
                 TokenFactory.forget(launch.launchId)
+                val afterFail = handshakeClient.findByPid(pid)
+                if (RrAttachStrategy.alreadyStarted(loaded.error) && afterFail != null) {
+                    return connectFromHandshake(project, parsed, afterFail)
+                }
+                if (RrAttachStrategy.shouldReuseExistingHandshake(null, afterFail)) {
+                    return connectFromHandshake(project, parsed, afterFail!!)
+                }
                 return loaded
             }
             val handshake =
                 handshakeClient.await(
-                    expectedPid = parsed.toLong(),
+                    expectedPid = pid,
                     expectedToken = launch.token,
                     startedAfter = launch.createdAt.minusSeconds(2),
                     timeout = timeout,
                 )
+            if (RrAttachStrategy.shouldReuseExistingHandshake(handshake, handshakeClient.findByPid(pid))) {
+                TokenFactory.forget(launch.launchId)
+                return connectFromHandshake(project, parsed, handshakeClient.findByPid(pid)!!)
+            }
             if (handshake == null) {
                 TokenFactory.forget(launch.launchId)
                 return RrLateAttach.Result(
@@ -136,17 +163,24 @@ class AttachRuntimeRocketAction : AnAction(
                     error = "RuntimeRocket agent loaded but handshake timed out for pid $parsed.",
                 )
             }
-            val session = RrSession(launch.token, handshake, processHandler = null)
+            return connectFromHandshake(project, parsed, handshake, launch.token)
+        }
+
+        internal fun connectFromHandshake(
+            project: Project,
+            pid: String,
+            handshake: HandshakeDocument,
+            token: String = handshake.token,
+        ): RrLateAttach.Result {
+            val session = RrSession(token, handshake, processHandler = null)
             return try {
-                val manager = RrSessionManager.getInstance(project)
-                manager.connect(session)
+                RrSessionManager.getInstance(project).connect(session)
                 RrReloadService.getInstance(project).baseline()
-                RrLateAttach.Result(ok = true, pid = parsed, handshake = handshake, token = launch.token)
+                RrLateAttach.Result(ok = true, pid = pid, handshake = handshake, token = token)
             } catch (e: Exception) {
-                TokenFactory.forget(launch.launchId)
                 RrLateAttach.Result(
                     ok = false,
-                    pid = parsed,
+                    pid = pid,
                     error = "Handshake failed: ${e.message ?: e.javaClass.simpleName}",
                     handshake = handshake,
                 )
