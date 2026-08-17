@@ -68,6 +68,16 @@ class RrLateSessionsTest {
         assertEquals(null, AttachRuntimeRocketAction.failureKeepsAttached(false, "enhanced"))
     }
 
+    @Test
+    fun attachSetupErrorNamesJunctionCollision() {
+        val message =
+            AttachRuntimeRocketAction.describeAttachSetupError(
+                java.nio.file.FileAlreadyExistsException("C:\\Temp\\runtimerocket"),
+            )
+        assertTrue(message.contains("runtimerocket"), message)
+        assertTrue(message.contains("junction"), message)
+    }
+
     private fun session(pid: Long): RrSession {
         return RrSession(
             token = "t$pid",
