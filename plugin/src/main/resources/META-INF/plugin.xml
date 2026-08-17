@@ -43,7 +43,8 @@
     <action id="rr.reloadNow"
             class="io.runtimerocket.plugin.ui.ReloadNowAction"
             text="RuntimeRocket: Reload Now"
-            description="Push last compile output to the agent">
+            description="Push last compile output to the agent"
+            icon="/icons/rrReload.svg">
       <add-to-group group-id="ToolsMenu" anchor="last"/>
     </action>
     <action id="rr.toggle"
@@ -53,7 +54,8 @@
     <action id="rr.attach"
             class="io.runtimerocket.plugin.run.AttachRuntimeRocketAction"
             text="Attach RuntimeRocket"
-            description="Late-attach the RuntimeRocket agent to a running local JVM">
+            description="Late-attach the RuntimeRocket agent to a running local JVM"
+            icon="/icons/rrAttach.svg">
       <add-to-group group-id="ToolsMenu" anchor="last"/>
     </action>
     <action id="rr.useBundledJbr"

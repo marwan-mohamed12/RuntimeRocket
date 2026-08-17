@@ -13,6 +13,7 @@ class ReloadNowActionTest {
         assertFalse(action.contains("keyboard-shortcut"), action)
         assertFalse(action.contains("keymap"), action)
         assertTrue(xml.contains("class=\"io.runtimerocket.plugin.ui.ReloadNowAction\""), xml)
+        assertTrue(action.contains("icon=\"/icons/rrReload.svg\""), action)
     }
 
     @Test
@@ -23,6 +24,10 @@ class ReloadNowActionTest {
         val action = actionBlock(xml, "rr.attach")
         assertFalse(action.contains("keyboard-shortcut"), action)
         assertTrue(action.contains("Attach RuntimeRocket"), action)
+        assertTrue(action.contains("icon=\"/icons/rrAttach.svg\""), action)
+        assertTrue(xml.contains("icon=\"/icons/rrReload.svg\""), xml)
+        assertTrue(action.contains("rrAttach.svg"), action)
+        assertTrue(!action.contains("rrReload.svg"), action)
     }
 
     private fun readPluginXml(): String {

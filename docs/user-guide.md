@@ -70,10 +70,12 @@ balloon. First attach shows `RuntimeRocket attached (enhanced HotSwap)` (or
 
 ### Tool window
 
-**View | Tool Windows | RuntimeRocket** (bottom). Sessions show pid, backend,
-and agent version. The log lists the last reload result (status, classes,
-adapter notes) and recent events. Toolbar: **Reload Now**, **Attach
-RuntimeRocket**, **Restart**.
+**View | Tool Windows | RuntimeRocket** (bottom). The header shows a colored
+status chip (green enhanced, blue standard, amber partial, red restart/fail)
+plus pid, backend, and agent version. The console is split: last result on
+top, recent events below, using the editor console font. Status, times, and
+class outcomes are color-coded. Toolbar buttons have distinct icons and
+labels: **Reload Now** (lightning), **Attach** (plug), **Restart** (loop).
 
 The footer states the debugger-HotSwap policy: `session veto on` (stock
 HotSwap is cancelled only for the RR-attached process) or `set IDE HotSwap

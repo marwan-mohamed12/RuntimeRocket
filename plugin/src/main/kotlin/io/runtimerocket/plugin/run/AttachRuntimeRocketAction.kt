@@ -12,6 +12,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.sun.tools.attach.VirtualMachine
 import io.runtimerocket.plugin.settings.RrProjectSettings
+import io.runtimerocket.plugin.ui.RrIcons
 import io.runtimerocket.plugin.ui.RrNotifier
 import io.runtimerocket.plugin.ui.RrStatus
 import io.runtimerocket.plugin.ui.RrUiRefresh
@@ -21,7 +22,11 @@ import io.runtimerocket.protocol.ReloadResult
 import java.time.Duration
 import java.time.Instant
 
-class AttachRuntimeRocketAction : AnAction(RrLateAttach.ACTION_TEXT), DumbAware {
+class AttachRuntimeRocketAction : AnAction(
+    "Attach",
+    "Late-attach the RuntimeRocket agent to a running local JVM",
+    RrIcons.Attach,
+), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
 
     override fun actionPerformed(e: AnActionEvent) {
