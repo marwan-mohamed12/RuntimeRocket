@@ -127,7 +127,7 @@ class AttachRuntimeRocketAction : AnAction(
                     return RrLateAttach.Result(
                         ok = false,
                         pid = parsed,
-                        error = "Failed to attach RuntimeRocket to pid $parsed: ${e.message ?: e.javaClass.simpleName}",
+                        error = "Failed to attach RuntimeRocket to pid $parsed: ${describeAttachSetupError(e)}",
                     )
                 }
             val agentJar =
@@ -223,6 +223,15 @@ class AttachRuntimeRocketAction : AnAction(
 
         internal fun failureKeepsAttached(hasActiveSession: Boolean, existingBackend: String?): String? {
             return if (hasActiveSession) existingBackend.orEmpty() else null
+        }
+
+        internal fun describeAttachSetupError(error: Exception): String {
+            val detail = error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
+            return if (error is java.nio.file.FileAlreadyExistsException) {
+                "cannot create $detail (a file or Windows junction is already at that path)"
+            } else {
+                "${error.javaClass.simpleName}: $detail"
+            }
         }
 
         internal fun displayLateAttachNotes(project: Project, handshake: HandshakeDocument?): LateAttachNotes.Display? {

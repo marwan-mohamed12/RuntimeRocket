@@ -2,10 +2,12 @@ package io.runtimerocket.agent.config;
 
 import io.runtimerocket.agent.AgentStartException;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.AclEntry;
@@ -29,29 +31,61 @@ public final class HandshakeFile {
     }
 
     /**
-     * Create {@code directory} without {@link Files#createDirectories}. That API uses
-     * {@code NOFOLLOW_LINKS}, so a Windows junction at {@code %TEMP%\runtimerocket}
-     * (the Hybris handshake workaround) throws {@link FileAlreadyExistsException}.
-     * A leftover file on the same path is replaced with a directory.
+     * Create {@code directory} without {@link Files#createDirectories} on an existing
+     * parent. The JDK treats a Windows junction as "not a directory"
+     * ({@code NOFOLLOW_LINKS}), so creating a child of {@code %TEMP%\runtimerocket}
+     * throws {@link FileAlreadyExistsException} on the junction. {@link File#mkdir()}
+     * uses Win32 and follows it. A leftover regular file is replaced.
      */
     static void ensureDirectory(Path directory) throws IOException {
-        if (Files.isDirectory(directory)) {
+        if (isUsableDir(directory)) {
+            return;
+        }
+        if (isUsableFile(directory)) {
+            Files.deleteIfExists(directory);
+        }
+        File io = directory.toFile();
+        if (mkdirLeaf(io, directory)) {
             return;
         }
         Path parent = directory.getParent();
         if (parent != null) {
-            ensureDirectory(parent);
-        }
-        if (Files.isRegularFile(directory)) {
-            Files.deleteIfExists(directory);
-        }
-        try {
-            Files.createDirectory(directory);
-        } catch (FileAlreadyExistsException existing) {
-            if (!Files.isDirectory(directory)) {
-                throw existing;
+            if (isUsableFile(parent)) {
+                Files.deleteIfExists(parent);
+            }
+            if (!isUsableDir(parent)) {
+                if (Files.exists(parent, LinkOption.NOFOLLOW_LINKS)) {
+                    Path real;
+                    try {
+                        real = parent.toRealPath();
+                    } catch (IOException ignored) {
+                        real = null;
+                    }
+                    if (real != null && isUsableDir(real)) {
+                        ensureDirectory(real.resolve(directory.getFileName().toString()));
+                        return;
+                    }
+                } else {
+                    ensureDirectory(parent);
+                }
             }
         }
+        if (mkdirLeaf(io, directory) || io.mkdirs() || isUsableDir(directory)) {
+            return;
+        }
+        throw new FileAlreadyExistsException(directory.toString());
+    }
+
+    private static boolean isUsableDir(Path path) {
+        return path.toFile().isDirectory() || Files.isDirectory(path);
+    }
+
+    private static boolean isUsableFile(Path path) {
+        return path.toFile().isFile() || Files.isRegularFile(path);
+    }
+
+    private static boolean mkdirLeaf(File io, Path path) {
+        return io.mkdir() || isUsableDir(path);
     }
 
     public static Path pathForPid(long pid) {

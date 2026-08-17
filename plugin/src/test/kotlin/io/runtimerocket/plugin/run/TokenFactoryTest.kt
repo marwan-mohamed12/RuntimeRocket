@@ -3,6 +3,7 @@ package io.runtimerocket.plugin.run
 import com.intellij.execution.configurations.JavaParameters
 import com.intellij.execution.process.NopProcessHandler
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -49,6 +50,13 @@ class TokenFactoryTest {
         TokenFactory.putOnParameters(params, launch)
         assertEquals(launch.launchId, params.env[TokenFactory.ENV_LAUNCH])
         TokenFactory.forget(launch.launchId)
+    }
+
+    @Test
+    fun tokenDirectoryIsNotUnderHandshakeTemp() {
+        val handshake = Path.of(System.getProperty("java.io.tmpdir"), "runtimerocket")
+        val tokens = TokenFactory.tokenDirectory().normalize()
+        assertFalse(tokens.startsWith(handshake.normalize()), tokens.toString())
     }
 
     @Test

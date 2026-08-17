@@ -2,10 +2,13 @@ package io.runtimerocket.plugin.run
 
 import com.intellij.execution.configurations.JavaParameters
 import com.intellij.execution.process.ProcessHandler
+import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.util.Key
+import java.io.File
 import java.nio.charset.StandardCharsets
 import java.nio.file.FileAlreadyExistsException
 import java.nio.file.Files
+import java.nio.file.LinkOption
 import java.nio.file.Path
 import java.security.SecureRandom
 import java.time.Instant
@@ -102,33 +105,60 @@ object TokenFactory {
         }
     }
 
-    fun tokenDirectory(): Path = Path.of(System.getProperty("java.io.tmpdir"), "runtimerocket", "tokens")
+    /** IDE system dir — never `%TEMP%\runtimerocket`, which may be a Hybris handshake junction. */
+    fun tokenDirectory(): Path = Path.of(PathManager.getSystemPath(), "runtimerocket", "tokens")
 
     /**
-     * Create [directory] without [Files.createDirectories]. That API uses
-     * `NOFOLLOW_LINKS`, so a Windows junction at `%TEMP%\runtimerocket` (the
-     * Hybris handshake workaround) throws [FileAlreadyExistsException].
-     * A leftover file on the same path is replaced with a directory.
+     * Create [directory] without [Files.createDirectories] / [Files.createDirectory]
+     * on an existing parent. IntelliJ's NIO provider and the JDK both treat a
+     * Windows junction as "not a directory" (`NOFOLLOW_LINKS`), so creating
+     * `%TEMP%\runtimerocket\tokens` throws [FileAlreadyExistsException] on the
+     * junction itself. `File.mkdir` uses Win32 and follows the junction.
      */
     internal fun ensureDirectory(directory: Path) {
-        if (Files.isDirectory(directory)) {
+        if (isUsableDir(directory)) {
+            return
+        }
+        if (isUsableFile(directory)) {
+            Files.deleteIfExists(directory)
+        }
+        val io = directory.toFile()
+        if (mkdirLeaf(io, directory)) {
             return
         }
         val parent = directory.parent
         if (parent != null) {
-            ensureDirectory(parent)
-        }
-        if (Files.isRegularFile(directory)) {
-            Files.deleteIfExists(directory)
-        }
-        try {
-            Files.createDirectory(directory)
-        } catch (e: FileAlreadyExistsException) {
-            if (!Files.isDirectory(directory)) {
-                throw e
+            if (isUsableFile(parent)) {
+                Files.deleteIfExists(parent)
+            }
+            if (!isUsableDir(parent)) {
+                if (Files.exists(parent, LinkOption.NOFOLLOW_LINKS)) {
+                    val real =
+                        try {
+                            parent.toRealPath()
+                        } catch (_: Exception) {
+                            null
+                        }
+                    if (real != null && isUsableDir(real)) {
+                        ensureDirectory(real.resolve(directory.fileName.toString()))
+                        return
+                    }
+                } else {
+                    ensureDirectory(parent)
+                }
             }
         }
+        if (mkdirLeaf(io, directory) || io.mkdirs() || isUsableDir(directory)) {
+            return
+        }
+        throw FileAlreadyExistsException(directory.toString())
     }
+
+    private fun isUsableDir(path: Path): Boolean = path.toFile().isDirectory || Files.isDirectory(path)
+
+    private fun isUsableFile(path: Path): Boolean = path.toFile().isFile || Files.isRegularFile(path)
+
+    private fun mkdirLeaf(io: File, path: Path): Boolean = io.mkdir() || isUsableDir(path)
 
     internal fun extractLaunchId(handler: ProcessHandler): String? {
         return ProcessLaunchIds.launchId(handler)
