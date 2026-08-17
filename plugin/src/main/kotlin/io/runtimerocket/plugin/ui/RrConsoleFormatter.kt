@@ -78,8 +78,12 @@ object RrConsoleFormatter {
         return out
     }
 
-    fun lastResult(event: RrReloadHistory.Event?, missingOutput: String?): List<Segment> {
-        if (event == null && missingOutput.isNullOrBlank()) {
+    fun lastResult(
+        event: RrReloadHistory.Event?,
+        missingOutput: String?,
+        steps: List<String> = emptyList(),
+    ): List<Segment> {
+        if (event == null && missingOutput.isNullOrBlank() && steps.isEmpty()) {
             return listOf(
                 Segment("No reload yet", Kind.HEADER),
                 Segment(
@@ -89,6 +93,13 @@ object RrConsoleFormatter {
             )
         }
         val out = mutableListOf<Segment>()
+        if (steps.isNotEmpty()) {
+            out += Segment("RELOAD STEPS", Kind.HEADER)
+            for (step in steps) {
+                out += Segment("\n$step", Kind.META)
+            }
+            out += Segment("\n\n")
+        }
         if (event != null) {
             out += Segment("LAST RESULT", Kind.HEADER)
             out += Segment("\n")

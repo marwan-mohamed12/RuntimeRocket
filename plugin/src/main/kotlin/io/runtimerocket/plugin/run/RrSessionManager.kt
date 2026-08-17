@@ -78,6 +78,8 @@ class RrSessionManager(private val project: Project) {
 
     fun session(handler: ProcessHandler): RrSession? = sessions[handler]
 
+    fun sessionByPid(pid: Long): RrSession? = activeSessions().firstOrNull { it.pid == pid }
+
     fun hasActiveSession(): Boolean {
         lateSessions.pruneDead()
         return sessions.isNotEmpty() || lateSessions.isNotEmpty()
@@ -95,14 +97,35 @@ class RrSessionManager(private val project: Project) {
             try {
                 results.add(session.sendReload(request))
             } catch (e: Exception) {
-                if (session.processHandler == null && isDeadConnection(e)) {
-                    lateSessions.disconnect(session.pid)
-                } else {
+                if (!isDeadConnection(e)) {
                     throw e
                 }
+                val recovered = reconnect(session)
+                if (recovered) {
+                    results.add(session.sendReload(request))
+                    continue
+                }
+                if (session.processHandler == null && !RrLateSessions.jvmAlive(session.pid)) {
+                    lateSessions.disconnect(session.pid)
+                    continue
+                }
+                val failed = ReloadResult()
+                failed.status = ReloadResult.FAILED
+                failed.message =
+                    "agent communication failed for pid ${session.pid}; session kept because the process is still running"
+                results.add(failed)
             }
         }
         return results
+    }
+
+    fun reconnect(session: RrSession): Boolean {
+        return try {
+            session.reconnect()
+            true
+        } catch (_: Exception) {
+            false
+        }
     }
 
     companion object {

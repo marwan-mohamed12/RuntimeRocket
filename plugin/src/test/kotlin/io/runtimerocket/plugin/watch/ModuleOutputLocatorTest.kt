@@ -58,6 +58,18 @@ class ModuleOutputLocatorTest {
     }
 
     @Test
+    fun hybrisEclipsebinAndClassesAreWatched() {
+        Files.createDirectories(temp.resolve("eclipsebin"))
+        Files.createDirectories(temp.resolve("classes"))
+        Files.writeString(temp.resolve("extensioninfo.xml"), "<extensioninfo/>")
+        val found = ModuleOutputLocator.wellKnownOutputs(temp, includeTests = false, gradle = false, maven = false, hybris = true)
+        val asText = found.map { temp.relativize(it).toString().replace('\\', '/') }
+        assertTrue("eclipsebin" in asText, asText.toString())
+        assertTrue("classes" in asText, asText.toString())
+        assertTrue(ModuleOutputLocator.isHybrisRoot(temp))
+    }
+
+    @Test
     fun doesNotGuessKmpLayouts() {
         Files.createDirectories(temp.resolve("build/classes/kotlin/jvm/main"))
         Files.createDirectories(temp.resolve("build/tmp/kapt3/classes/main"))

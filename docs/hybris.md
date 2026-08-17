@@ -80,8 +80,9 @@ Do this once per machine. Do not run it inside the `hybrisserver` window.
 1. Terminal: `hybrisserver.bat debug` (or `hybrisserver.sh debug`).
 2. Wait until HAC / Backoffice / OCC responds.
 3. IntelliJ: **Tools | Attach RuntimeRocket**.
-4. Pick **`org.apache.catalina.startup.Bootstrap`** — that is Tomcat /
-   Hybris. Confirm with `jps -l` if several `java` processes exist.
+4. Pick the line labeled **Hybris / Tomcat** (`Bootstrap`). IntelliJ and
+   Gradle JVMs are hidden. If you already attached once, Attach
+   reconnects — do not expect a second agent load.
 5. Attach **once**. Status: **`RR ● standard`**.
 
 Do not pick IntelliJ, `GradleDaemon`, or `jps.cmdline`.
@@ -103,9 +104,14 @@ twice — stop attaching; restart the server if the IDE is not connected.
 3. Change **one line inside an existing method** (for example
    `System.out.println("RR test");`).
 4. Compile the **module** that owns the file
-   (`cchfacades`, `cchbackoffice`, …):
+   (`cchfacades`, `cchcore`, `cchbackoffice`, …):
    right-click the **module** → **Build | Recompile ‘…’**.
-5. **View | Tool Windows | Build** must be green.
+   **Reload Now** also tries a hot reload first, then that same module
+   build only if needed. Output under `eclipsebin` / `classes` is scanned
+   while attached.
+5. **View | Tool Windows | Build** must be green. `package … does not
+   exist` is an IntelliJ classpath problem (missing `cloudcommons`), not
+   a detach. The session stays attached.
 6. Status **`RR ✓`**. Use Backoffice / the storefront. Check the Hybris
    console for your log line.
 

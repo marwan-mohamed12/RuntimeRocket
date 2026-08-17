@@ -14,6 +14,17 @@ class HandshakeClientTest {
     lateinit var temp: Path
 
     @Test
+    fun findByPidDoesNotRequireOurToken() {
+        val started = Instant.parse("2026-08-15T12:00:00Z")
+        writeHandshake(temp.resolve("77.json"), pid = 77, port = 12, token = "already-running", startedAt = started)
+        val client = HandshakeClient(directory = temp, sleeper = { })
+        val found = client.findByPid(77)
+        assertEquals(77L, found?.pid)
+        assertEquals("already-running", found?.token)
+        assertEquals(12, found?.port)
+    }
+
+    @Test
     fun findsHandshakeByPidWhenTokenMatches() {
         val token = "abc123"
         val started = Instant.parse("2026-08-15T12:00:00Z")

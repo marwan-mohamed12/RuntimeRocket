@@ -39,7 +39,7 @@ object RrLateAttach {
 
     fun formatVmChoice(descriptor: VirtualMachineDescriptor): String {
         val name = descriptor.displayName().ifBlank { "JVM" }
-        return "${descriptor.id()} — $name"
+        return RrJvmClassifier.label(descriptor.id(), name)
     }
 
     fun attach(
