@@ -4,6 +4,7 @@ import com.intellij.execution.configurations.JavaParameters
 import com.intellij.execution.process.ProcessHandler
 import com.intellij.openapi.util.Key
 import java.nio.charset.StandardCharsets
+import java.nio.file.FileAlreadyExistsException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.security.SecureRandom
@@ -35,7 +36,7 @@ object TokenFactory {
 
     fun newLaunch(directory: Path = tokenDirectory()): SessionToken {
         val token = generate()
-        Files.createDirectories(directory)
+        ensureDirectory(directory)
         RestrictedFiles.restrict(directory)
         val file = writeTokenFile(token, directory)
         val session = SessionToken(UUID.randomUUID().toString(), token, file, Instant.now())
@@ -48,7 +49,7 @@ object TokenFactory {
     }
 
     fun writeTokenFile(token: String, directory: Path): Path {
-        Files.createDirectories(directory)
+        ensureDirectory(directory)
         RestrictedFiles.restrict(directory)
         val file = directory.resolve(UUID.randomUUID().toString() + ".token")
         try {
@@ -102,6 +103,32 @@ object TokenFactory {
     }
 
     fun tokenDirectory(): Path = Path.of(System.getProperty("java.io.tmpdir"), "runtimerocket", "tokens")
+
+    /**
+     * Create [directory] without [Files.createDirectories]. That API uses
+     * `NOFOLLOW_LINKS`, so a Windows junction at `%TEMP%\runtimerocket` (the
+     * Hybris handshake workaround) throws [FileAlreadyExistsException].
+     * A leftover file on the same path is replaced with a directory.
+     */
+    internal fun ensureDirectory(directory: Path) {
+        if (Files.isDirectory(directory)) {
+            return
+        }
+        val parent = directory.parent
+        if (parent != null) {
+            ensureDirectory(parent)
+        }
+        if (Files.isRegularFile(directory)) {
+            Files.deleteIfExists(directory)
+        }
+        try {
+            Files.createDirectory(directory)
+        } catch (e: FileAlreadyExistsException) {
+            if (!Files.isDirectory(directory)) {
+                throw e
+            }
+        }
+    }
 
     internal fun extractLaunchId(handler: ProcessHandler): String? {
         return ProcessLaunchIds.launchId(handler)

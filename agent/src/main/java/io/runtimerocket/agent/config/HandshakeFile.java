@@ -4,6 +4,7 @@ import io.runtimerocket.agent.AgentStartException;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -27,6 +28,32 @@ public final class HandshakeFile {
         return Path.of(System.getProperty("java.io.tmpdir"), "runtimerocket");
     }
 
+    /**
+     * Create {@code directory} without {@link Files#createDirectories}. That API uses
+     * {@code NOFOLLOW_LINKS}, so a Windows junction at {@code %TEMP%\runtimerocket}
+     * (the Hybris handshake workaround) throws {@link FileAlreadyExistsException}.
+     * A leftover file on the same path is replaced with a directory.
+     */
+    static void ensureDirectory(Path directory) throws IOException {
+        if (Files.isDirectory(directory)) {
+            return;
+        }
+        Path parent = directory.getParent();
+        if (parent != null) {
+            ensureDirectory(parent);
+        }
+        if (Files.isRegularFile(directory)) {
+            Files.deleteIfExists(directory);
+        }
+        try {
+            Files.createDirectory(directory);
+        } catch (FileAlreadyExistsException existing) {
+            if (!Files.isDirectory(directory)) {
+                throw existing;
+            }
+        }
+    }
+
     public static Path pathForPid(long pid) {
         return directory().resolve(pid + ".json");
     }
@@ -34,7 +61,7 @@ public final class HandshakeFile {
     public static Path write(Handshake handshake) {
         Path dir = directory();
         try {
-            Files.createDirectories(dir);
+            ensureDirectory(dir);
         } catch (IOException e) {
             throw new AgentStartException("cannot create handshake directory: " + dir, e);
         }
