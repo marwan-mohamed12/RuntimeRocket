@@ -62,6 +62,13 @@ class RrLateSessionsTest {
     }
 
     @Test
+    fun lateAttachSessionCannotRestartRunConfig() {
+        val late = session(99)
+        assertEquals(false, late.canRestart())
+        assertEquals(false, late.restart())
+    }
+
+    @Test
     fun attachFailureKeepsStatusWhenAnotherSessionIsActive() {
         assertEquals("enhanced", AttachRuntimeRocketAction.failureKeepsAttached(true, "enhanced"))
         assertEquals("", AttachRuntimeRocketAction.failureKeepsAttached(true, null))

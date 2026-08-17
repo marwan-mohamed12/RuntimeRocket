@@ -42,6 +42,19 @@ class RrReloadPlanTest {
     }
 
     @Test
+    fun noModuleStopsInsteadOfPretendingCompileFailed() {
+        assertEquals(
+            RrReloadPlan.Step.DONE,
+            RrReloadPlan.next(RrReloadPlan.Step.HOT_RELOAD, RrReloadPlan.Outcome.NO_MODULE),
+        )
+        assertEquals(
+            RrReloadPlan.Step.DONE,
+            RrReloadPlan.next(RrReloadPlan.Step.BUILD, RrReloadPlan.Outcome.NO_MODULE),
+        )
+        assertEquals(RrReloadPlan.NO_MODULE_DETAIL, RrReloadPlan.stopReason(RrReloadPlan.Outcome.NO_MODULE))
+    }
+
+    @Test
     fun failedBuildGoesToDiagnoseThenStopsOnRealErrors() {
         assertEquals(
             RrReloadPlan.Step.DIAGNOSE,

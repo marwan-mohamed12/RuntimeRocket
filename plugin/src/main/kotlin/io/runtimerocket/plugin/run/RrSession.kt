@@ -61,14 +61,17 @@ class RrSession(
         return connectedClient.sendReload(request)
     }
 
-    fun restart() {
-        val env = environment ?: return
+    fun canRestart(): Boolean = environment != null
+
+    fun restart(): Boolean {
+        val env = environment ?: return false
         val app = ApplicationManager.getApplication()
         if (app.isDispatchThread) {
             ExecutionUtil.restart(env)
         } else {
             app.invokeLater { ExecutionUtil.restart(env) }
         }
+        return true
     }
 
     fun close() {

@@ -21,6 +21,7 @@ object RrReloadPlan {
         NOT_ATTACHED,
         REAL_ERRORS,
         TIMED_OUT,
+        NO_MODULE,
     }
 
     fun outcomeOf(status: String?, emptyDiff: Boolean, attached: Boolean): Outcome {
@@ -43,13 +44,13 @@ object RrReloadPlan {
         return when (step) {
             Step.HOT_RELOAD ->
                 when (outcome) {
-                    Outcome.SUCCESS, Outcome.PARTIAL, Outcome.RESTART_REQUIRED, Outcome.NOT_ATTACHED, Outcome.REAL_ERRORS, Outcome.TIMED_OUT ->
+                    Outcome.SUCCESS, Outcome.PARTIAL, Outcome.RESTART_REQUIRED, Outcome.NOT_ATTACHED, Outcome.REAL_ERRORS, Outcome.TIMED_OUT, Outcome.NO_MODULE ->
                         Step.DONE
                     Outcome.EMPTY, Outcome.COMPILE_FAILED, Outcome.SEND_FAILED -> Step.BUILD
                 }
             Step.BUILD ->
                 when (outcome) {
-                    Outcome.SUCCESS, Outcome.PARTIAL, Outcome.RESTART_REQUIRED, Outcome.NOT_ATTACHED, Outcome.REAL_ERRORS, Outcome.TIMED_OUT ->
+                    Outcome.SUCCESS, Outcome.PARTIAL, Outcome.RESTART_REQUIRED, Outcome.NOT_ATTACHED, Outcome.REAL_ERRORS, Outcome.TIMED_OUT, Outcome.NO_MODULE ->
                         Step.DONE
                     Outcome.EMPTY, Outcome.COMPILE_FAILED, Outcome.SEND_FAILED -> Step.DIAGNOSE
                 }
@@ -67,9 +68,13 @@ object RrReloadPlan {
             Outcome.REAL_ERRORS -> "Compile still has real errors. Fix the sources, then Reload."
             Outcome.TIMED_OUT ->
                 "Build timed out. Wait for the IDE compile to finish, then Reload — or Recompile the module by hand."
+            Outcome.NO_MODULE -> NO_MODULE_DETAIL
             else -> null
         }
     }
+
+    const val NO_MODULE_DETAIL =
+        "No source file in focus. Click in the changed file, then Reload — or Recompile the module by hand."
 
     fun stepTitle(step: Step): String {
         return when (step) {

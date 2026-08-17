@@ -7,7 +7,6 @@ import com.intellij.openapi.compiler.CompileContext
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.module.Module
-import com.intellij.openapi.module.ModuleUtilCore
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
@@ -90,8 +89,8 @@ class RrReloadService(private val project: Project) {
         scheduleWatchScan()
     }
 
-    fun reloadNow(file: VirtualFile?) {
-        executor.execute { runOrchestratedReload(file) }
+    fun reloadNow(file: VirtualFile?, moduleHint: Module? = null) {
+        executor.execute { runOrchestratedReload(file, moduleHint) }
     }
 
     fun installBuildListener() {
@@ -122,10 +121,11 @@ class RrReloadService(private val project: Project) {
         startOutputWatch()
     }
 
-    internal fun runOrchestratedReload(file: VirtualFile?) {
+    internal fun runOrchestratedReload(file: VirtualFile?, moduleHint: Module? = null) {
         val history = history()
         history.beginSteps()
-        val module = file?.let { ModuleUtilCore.findModuleForFile(it, project) }
+        val focus = RrEditorFocus.preferredFile(project, file)
+        val module = moduleHint ?: RrEditorFocus.moduleFor(project, focus)
         saveDocuments()
         refreshOutputRoots()
 
@@ -137,43 +137,58 @@ class RrReloadService(private val project: Project) {
             publishSteps()
             val outcome =
                 when (step) {
-                    RrReloadPlan.Step.HOT_RELOAD -> hotReload()
-                    RrReloadPlan.Step.BUILD -> {
-                        val built = buildModule(module, includeDependents, preferDelegated)
-                        if (!built.ok) {
-                            history.addStep("   ${built.message ?: "compile failed"}")
-                            publishSteps()
-                            if (built.timedOut) {
-                                recordCompileFailure(built.message ?: "compile timed out")
-                                restoreIdle()
-                                RrReloadPlan.Outcome.TIMED_OUT
-                            } else {
-                                RrReloadPlan.Outcome.COMPILE_FAILED
-                            }
+                    RrReloadPlan.Step.HOT_RELOAD -> {
+                        val reloaded = hotReload()
+                        if (reloaded == RrReloadPlan.Outcome.EMPTY && module == null) {
+                            stopWithoutModule(history)
                         } else {
-                            refreshOutputRoots()
-                            hotReload()
+                            reloaded
+                        }
+                    }
+                    RrReloadPlan.Step.BUILD -> {
+                        if (module == null) {
+                            stopWithoutModule(history)
+                        } else {
+                            val built = buildModule(module, includeDependents, preferDelegated)
+                            if (!built.ok) {
+                                history.addStep("   ${built.message ?: "compile failed"}")
+                                publishSteps()
+                                if (built.timedOut) {
+                                    recordCompileFailure(built.message ?: "compile timed out")
+                                    restoreIdle()
+                                    RrReloadPlan.Outcome.TIMED_OUT
+                                } else {
+                                    RrReloadPlan.Outcome.COMPILE_FAILED
+                                }
+                            } else {
+                                refreshOutputRoots()
+                                hotReload()
+                            }
                         }
                     }
                     RrReloadPlan.Step.DIAGNOSE -> {
-                        saveDocuments()
-                        refreshOutputRoots()
-                        includeDependents = true
-                        preferDelegated = true
-                        val built = buildModule(module, includeDependents = true, preferDelegated = true)
-                        if (!built.ok) {
-                            history.addStep("   ${built.message ?: "still failing"}")
-                            publishSteps()
-                            recordCompileFailure(built.message ?: "compile still has errors")
-                            restoreIdle()
-                            if (built.timedOut) {
-                                RrReloadPlan.Outcome.TIMED_OUT
-                            } else {
-                                RrReloadPlan.Outcome.REAL_ERRORS
-                            }
+                        if (module == null) {
+                            stopWithoutModule(history)
                         } else {
+                            saveDocuments()
                             refreshOutputRoots()
-                            hotReload()
+                            includeDependents = true
+                            preferDelegated = true
+                            val built = buildModule(module, includeDependents = true, preferDelegated = true)
+                            if (!built.ok) {
+                                history.addStep("   ${built.message ?: "still failing"}")
+                                publishSteps()
+                                recordCompileFailure(built.message ?: "compile still has errors")
+                                restoreIdle()
+                                if (built.timedOut) {
+                                    RrReloadPlan.Outcome.TIMED_OUT
+                                } else {
+                                    RrReloadPlan.Outcome.REAL_ERRORS
+                                }
+                            } else {
+                                refreshOutputRoots()
+                                hotReload()
+                            }
                         }
                     }
                     RrReloadPlan.Step.DONE -> RrReloadPlan.Outcome.SUCCESS
@@ -185,6 +200,14 @@ class RrReloadService(private val project: Project) {
             }
             step = RrReloadPlan.next(step, outcome)
         }
+    }
+
+    private fun stopWithoutModule(history: RrReloadHistory): RrReloadPlan.Outcome {
+        history.addStep("   ${RrReloadPlan.NO_MODULE_DETAIL}")
+        publishSteps()
+        recordCompileFailure(RrReloadPlan.NO_MODULE_DETAIL)
+        restoreIdle()
+        return RrReloadPlan.Outcome.NO_MODULE
     }
 
     private fun hotReload(): RrReloadPlan.Outcome {
