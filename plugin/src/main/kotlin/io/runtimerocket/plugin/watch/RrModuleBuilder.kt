@@ -15,6 +15,7 @@ internal object RrModuleBuilder {
         val ok: Boolean,
         val errors: Int = 0,
         val aborted: Boolean = false,
+        val timedOut: Boolean = false,
         val message: String? = null,
     )
 
@@ -62,7 +63,7 @@ internal object RrModuleBuilder {
                 app.invokeLater(run)
             }
             if (!latch.await(3, TimeUnit.MINUTES)) {
-                return Outcome(ok = false, message = "build timed out")
+                return Outcome(ok = false, timedOut = true, message = "build timed out")
             }
             box.get() ?: Outcome(ok = false, message = "build produced no result")
         } catch (_: Throwable) {
@@ -101,7 +102,7 @@ internal object RrModuleBuilder {
             app.invokeLater(run)
         }
         if (!latch.await(3, TimeUnit.MINUTES)) {
-            return Outcome(ok = false, message = "compile timed out")
+            return Outcome(ok = false, timedOut = true, message = "compile timed out")
         }
         return box.get() ?: Outcome(ok = false, message = "compile produced no result")
     }

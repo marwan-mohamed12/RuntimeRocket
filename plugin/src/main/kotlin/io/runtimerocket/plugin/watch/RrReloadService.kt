@@ -67,6 +67,7 @@ class RrReloadService(private val project: Project) {
             return
         }
         if (suppressAutoReload.get()) {
+            restoreAfterBuild()
             return
         }
         val force = forceAfterCompile.getAndSet(false)
@@ -110,10 +111,7 @@ class RrReloadService(private val project: Project) {
                     if (project != this@RrReloadService.project) {
                         return
                     }
-                    if (suppressAutoReload.get()) {
-                        return
-                    }
-                    when (compileCycle.onBuildFinished()) {
+                    when (compileCycle.onBuildFinished(suppressAutoReload.get())) {
                         RrCompileCycle.BuildFinish.RESTORE_IDLE -> restoreAfterBuild()
                         RrCompileCycle.BuildFinish.ARM_VFS -> armGradleVfsWindow()
                         RrCompileCycle.BuildFinish.NOTHING -> {}
@@ -145,7 +143,13 @@ class RrReloadService(private val project: Project) {
                         if (!built.ok) {
                             history.addStep("   ${built.message ?: "compile failed"}")
                             publishSteps()
-                            RrReloadPlan.Outcome.COMPILE_FAILED
+                            if (built.timedOut) {
+                                recordCompileFailure(built.message ?: "compile timed out")
+                                restoreIdle()
+                                RrReloadPlan.Outcome.TIMED_OUT
+                            } else {
+                                RrReloadPlan.Outcome.COMPILE_FAILED
+                            }
                         } else {
                             refreshOutputRoots()
                             hotReload()
@@ -161,7 +165,12 @@ class RrReloadService(private val project: Project) {
                             history.addStep("   ${built.message ?: "still failing"}")
                             publishSteps()
                             recordCompileFailure(built.message ?: "compile still has errors")
-                            RrReloadPlan.Outcome.REAL_ERRORS
+                            restoreIdle()
+                            if (built.timedOut) {
+                                RrReloadPlan.Outcome.TIMED_OUT
+                            } else {
+                                RrReloadPlan.Outcome.REAL_ERRORS
+                            }
                         } else {
                             refreshOutputRoots()
                             hotReload()
@@ -204,6 +213,8 @@ class RrReloadService(private val project: Project) {
             RrModuleBuilder.make(project, module, includeDependents, preferDelegated)
         } finally {
             suppressAutoReload.set(false)
+            compileCycle.releaseCompileLock()
+            restoreAfterBuild()
         }
     }
 

@@ -30,6 +30,18 @@ class RrReloadPlanTest {
     }
 
     @Test
+    fun timedOutBuildDoesNotStartAnotherCompile() {
+        assertEquals(
+            RrReloadPlan.Step.DONE,
+            RrReloadPlan.next(RrReloadPlan.Step.BUILD, RrReloadPlan.Outcome.TIMED_OUT),
+        )
+        assertEquals(
+            RrReloadPlan.Step.DONE,
+            RrReloadPlan.next(RrReloadPlan.Step.HOT_RELOAD, RrReloadPlan.Outcome.TIMED_OUT),
+        )
+    }
+
+    @Test
     fun failedBuildGoesToDiagnoseThenStopsOnRealErrors() {
         assertEquals(
             RrReloadPlan.Step.DIAGNOSE,
