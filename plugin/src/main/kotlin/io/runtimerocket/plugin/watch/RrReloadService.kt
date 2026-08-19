@@ -6,8 +6,12 @@ import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.compiler.CompileContext
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.fileEditor.FileDocumentManager
+import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.module.Module
+import com.intellij.openapi.module.ModuleManager
+import com.intellij.openapi.module.ModuleUtilCore
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.vcs.changes.ChangeListManager
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.EditorNotifications
@@ -124,14 +128,13 @@ class RrReloadService(private val project: Project) {
     internal fun runOrchestratedReload(file: VirtualFile?, moduleHint: Module? = null) {
         val history = history()
         history.beginSteps()
-        val focus = RrEditorFocus.preferredFile(project, file)
-        val module = moduleHint ?: RrEditorFocus.moduleFor(project, focus)
+        val modules = resolveModulesForReload(file, moduleHint)
         saveDocuments()
         refreshOutputRoots()
 
         var step = RrReloadPlan.Step.HOT_RELOAD
         var includeDependents = false
-        var preferDelegated = module != null && ModuleOutputLocator.isGradle(module)
+        var preferDelegated = modules.isNotEmpty() && modules.all { ModuleOutputLocator.isGradle(it) }
         while (step != RrReloadPlan.Step.DONE) {
             history.addStep(RrReloadPlan.stepTitle(step))
             publishSteps()
@@ -139,17 +142,17 @@ class RrReloadService(private val project: Project) {
                 when (step) {
                     RrReloadPlan.Step.HOT_RELOAD -> {
                         val reloaded = hotReload()
-                        if (reloaded == RrReloadPlan.Outcome.EMPTY && module == null) {
+                        if (reloaded == RrReloadPlan.Outcome.EMPTY && modules.isEmpty()) {
                             stopWithoutModule(history)
                         } else {
                             reloaded
                         }
                     }
                     RrReloadPlan.Step.BUILD -> {
-                        if (module == null) {
+                        if (modules.isEmpty()) {
                             stopWithoutModule(history)
                         } else {
-                            val built = buildModule(module, includeDependents, preferDelegated)
+                            val built = buildModule(modules, includeDependents, preferDelegated)
                             if (!built.ok) {
                                 history.addStep("   ${built.message ?: "compile failed"}")
                                 publishSteps()
@@ -167,14 +170,14 @@ class RrReloadService(private val project: Project) {
                         }
                     }
                     RrReloadPlan.Step.DIAGNOSE -> {
-                        if (module == null) {
+                        if (modules.isEmpty()) {
                             stopWithoutModule(history)
                         } else {
                             saveDocuments()
                             refreshOutputRoots()
                             includeDependents = true
                             preferDelegated = true
-                            val built = buildModule(module, includeDependents = true, preferDelegated = true)
+                            val built = buildModule(modules, includeDependents = true, preferDelegated = true)
                             if (!built.ok) {
                                 history.addStep("   ${built.message ?: "still failing"}")
                                 publishSteps()
@@ -210,6 +213,46 @@ class RrReloadService(private val project: Project) {
         return RrReloadPlan.Outcome.NO_MODULE
     }
 
+    /**
+     * Figures out which module(s) to build without requiring a focused editor tab.
+     *
+     * Priority: (1) an explicit module/file hint, including the selected editor; (2) modules
+     * that own an unsaved document; (3) modules that own a VCS-modified file; (4) modules that
+     * own any currently open editor file. If none of that resolves anything, every module in
+     * the project is returned so Reload can still compile.
+     */
+    private fun resolveModulesForReload(hintFile: VirtualFile?, moduleHint: Module?): List<Module> {
+        val hint =
+            moduleHint
+                ?: RrEditorFocus.preferredFile(project, hintFile)?.let { ModuleUtilCore.findModuleForFile(it, project) }
+        val unsaved = LinkedHashSet<Module>()
+        ReadAction.compute<Unit, RuntimeException> {
+            FileDocumentManager.getInstance().unsavedDocuments.forEach { document ->
+                val vf = FileDocumentManager.getInstance().getFile(document) ?: return@forEach
+                ModuleUtilCore.findModuleForFile(vf, project)?.let { unsaved.add(it) }
+            }
+        }
+        val vcs = LinkedHashSet<Module>()
+        try {
+            ChangeListManager.getInstance(project).affectedFiles.forEach { vf ->
+                ModuleUtilCore.findModuleForFile(vf, project)?.let { vcs.add(it) }
+            }
+        } catch (_: Exception) {
+            // VCS not configured / not ready — fall through to open editors.
+        }
+        val open = LinkedHashSet<Module>()
+        FileEditorManager.getInstance(project).openFiles.forEach { vf ->
+            ModuleUtilCore.findModuleForFile(vf, project)?.let { open.add(it) }
+        }
+        return RrReloadTargets.pick(
+            hint,
+            unsaved,
+            vcs,
+            open,
+            ModuleManager.getInstance(project).modules.toList(),
+        )
+    }
+
     private fun hotReload(): RrReloadPlan.Outcome {
         val manager = RrSessionManager.getInstance(project)
         if (!manager.hasActiveSession()) {
@@ -230,10 +273,10 @@ class RrReloadService(private val project: Project) {
         }
     }
 
-    private fun buildModule(module: Module?, includeDependents: Boolean, preferDelegated: Boolean): RrModuleBuilder.Outcome {
+    private fun buildModule(modules: List<Module>, includeDependents: Boolean, preferDelegated: Boolean): RrModuleBuilder.Outcome {
         suppressAutoReload.set(true)
         return try {
-            RrModuleBuilder.make(project, module, includeDependents, preferDelegated)
+            RrModuleBuilder.make(project, modules, includeDependents, preferDelegated)
         } finally {
             suppressAutoReload.set(false)
             compileCycle.releaseCompileLock()
