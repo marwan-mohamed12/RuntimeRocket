@@ -92,10 +92,27 @@ class RrConsoleFormatterTest {
     }
 
     @Test
+    fun lastResultListsReloadSteps() {
+        val text =
+            RrConsoleFormatter.lastResult(null, null, listOf("1. Hot reload", "   no module in focus"))
+                .joinToString("") { it.text }
+        assertTrue(text.contains("RELOAD STEPS"), text)
+        assertTrue(text.contains("1. Hot reload"), text)
+        assertTrue(text.contains("no module in focus"), text)
+    }
+
+    @Test
     fun emptyLastResultExplainsHowToStart() {
         val text = RrConsoleFormatter.lastResult(null, null).joinToString("") { it.text }
         assertTrue(text.contains("No reload yet"), text)
         assertTrue(text.contains("Attach"), text)
+    }
+
+    @Test
+    fun detachMessageKeepsTheJvmRunning() {
+        assertEquals("Nothing is attached.", DetachRuntimeRocketAction.message(0))
+        assertEquals("RuntimeRocket detached. The JVM is still running.", DetachRuntimeRocketAction.message(1))
+        assertTrue(DetachRuntimeRocketAction.message(2).contains("2 sessions"))
     }
 
     @Test
