@@ -2,6 +2,7 @@ package io.runtimerocket.plugin.ui
 
 import com.intellij.openapi.fileEditor.FileEditor
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.EditorNotificationPanel
 import com.intellij.ui.EditorNotificationProvider
@@ -34,7 +35,15 @@ class RrRestartEditorNotificationProvider : EditorNotificationProvider {
                     "RuntimeRocket: last reload failed — $reason"
                 }
             panel.createActionLabel("Restart") {
-                RrSessionManager.getInstance(project).activeSessions().firstOrNull()?.restart()
+                val manager = RrSessionManager.getInstance(project)
+                val target = manager.activeSessions().firstOrNull { it.canRestart() } ?: manager.activeSessions().firstOrNull()
+                if (target == null || !target.restart()) {
+                    Messages.showInfoMessage(
+                        project,
+                        RestartRunConfigAction.LATE_ATTACH_NO_RUN_CONFIG,
+                        RestartRunConfigAction.ACTION_TEXT,
+                    )
+                }
             }
             panel.createActionLabel("Dismiss") {
                 history.dismissRestartBanner()

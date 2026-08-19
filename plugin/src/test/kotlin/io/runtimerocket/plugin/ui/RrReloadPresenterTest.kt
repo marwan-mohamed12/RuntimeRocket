@@ -26,6 +26,7 @@ class RrReloadPresenterTest {
 
         val action = RestartRunConfigAction()
         assertEquals("Restart", action.templatePresentation.text)
+        assertTrue(RestartRunConfigAction.LATE_ATTACH_NO_RUN_CONFIG.contains("attached"), RestartRunConfigAction.LATE_ATTACH_NO_RUN_CONFIG)
     }
 
     @Test
