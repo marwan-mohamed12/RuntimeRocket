@@ -3,6 +3,7 @@ package io.runtimerocket.plugin.watch
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.compiler.CompilerManager
 import com.intellij.openapi.module.Module
+import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.task.ProjectTaskManager
 import java.util.concurrent.CountDownLatch
@@ -19,30 +20,37 @@ internal object RrModuleBuilder {
         val message: String? = null,
     )
 
+    /**
+     * Builds [modules]. When [modules] is empty (no focused/hinted file, and no other way to
+     * guess), this no longer fails with "no module in focus" — it falls back to building every
+     * module in the project, exactly like Build | Build Project would, so a manual Reload never
+     * needs an active editor tab to work.
+     */
     fun make(
         project: Project,
-        module: Module?,
+        modules: List<Module>,
         includeDependents: Boolean,
         preferDelegated: Boolean,
     ): Outcome {
-        if (module == null) {
-            return Outcome(ok = false, message = "no module in focus")
+        val targets = modules.ifEmpty { ModuleManager.getInstance(project).modules.toList() }
+        if (targets.isEmpty()) {
+            return Outcome(ok = false, message = "project has no modules")
         }
         if (preferDelegated) {
-            val delegated = delegatedBuild(project, module)
+            val delegated = delegatedBuild(project, targets)
             if (delegated != null) {
                 return delegated
             }
         }
-        return jpsMake(project, module, includeDependents)
+        return jpsMake(project, targets, includeDependents)
     }
 
-    private fun delegatedBuild(project: Project, module: Module): Outcome? {
+    private fun delegatedBuild(project: Project, modules: List<Module>): Outcome? {
         return try {
             val latch = CountDownLatch(1)
             val box = AtomicReference<Outcome>()
             val run = {
-                ProjectTaskManager.getInstance(project).build(module).onProcessed { result ->
+                ProjectTaskManager.getInstance(project).build(*modules.toTypedArray()).onProcessed { result ->
                     val errors = if (result?.hasErrors() == true) 1 else 0
                     box.set(
                         Outcome(
@@ -71,11 +79,11 @@ internal object RrModuleBuilder {
         }
     }
 
-    private fun jpsMake(project: Project, module: Module, includeDependents: Boolean): Outcome {
+    private fun jpsMake(project: Project, modules: List<Module>, includeDependents: Boolean): Outcome {
         val latch = CountDownLatch(1)
         val box = AtomicReference<Outcome>()
         val compiler = CompilerManager.getInstance(project)
-        val scope = compiler.createModulesCompileScope(arrayOf(module), includeDependents)
+        val scope = compiler.createModulesCompileScope(modules.toTypedArray(), includeDependents)
         val run = {
             compiler.make(scope) { aborted, errors, _, _ ->
                 box.set(
