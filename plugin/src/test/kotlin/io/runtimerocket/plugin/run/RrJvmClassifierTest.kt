@@ -16,6 +16,18 @@ class RrJvmClassifierTest {
     }
 
     @Test
+    fun wrapperSimpleAppIsHybris() {
+        assertEquals(
+            RrJvmClassifier.Kind.HYBRIS,
+            RrJvmClassifier.classify("org.tanukisoftware.wrapper.WrapperSimpleApp de.hybris.bootstrap.loader.Loader"),
+        )
+        assertEquals(
+            RrJvmClassifier.Kind.OTHER,
+            RrJvmClassifier.classify("org.tanukisoftware.wrapper.WrapperSimpleApp com.example.Service"),
+        )
+    }
+
+    @Test
     fun ideAndGradleAreNoise() {
         assertEquals(RrJvmClassifier.Kind.IDE, RrJvmClassifier.classify("com.intellij.idea.Main"))
         assertEquals(RrJvmClassifier.Kind.BUILD, RrJvmClassifier.classify("org.gradle.launcher.daemon.bootstrap.GradleDaemon"))

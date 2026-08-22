@@ -29,6 +29,7 @@ public final class SpringAdapter implements FrameworkAdapter {
     public static final String STATIC_DETAIL = "static-on-disk";
     public static final String MAPPING_STALE_DETAIL = "controller mappings may be stale — restart";
     public static final String PROXY_STALE_DETAIL = "proxy stale — restart";
+    public static final String DEVTOOLS_DETAIL = "Spring DevTools restart is enabled";
 
     private final SpringHookTransformer transformer = new SpringHookTransformer();
     private final AtomicBoolean installed = new AtomicBoolean(false);
@@ -48,10 +49,7 @@ public final class SpringAdapter implements FrameworkAdapter {
 
     @Override
     public boolean isAvailable(ClassLoader appLoader) {
-        if (!SpringEnvironment.springPresent(appLoader)) {
-            return false;
-        }
-        return !refuse;
+        return SpringEnvironment.springPresent(appLoader);
     }
 
     @Override
@@ -79,7 +77,7 @@ public final class SpringAdapter implements FrameworkAdapter {
         if (ctx != null && devToolsOn(ctx)) {
             refuse = true;
             ctx.log("error", "Spring DevTools restart is enabled; Spring adapter will not start");
-            return new AdapterOutcome(ID, AdapterOutcome.FAILED, 0L, "Spring DevTools restart is enabled");
+            return new AdapterOutcome(ID, AdapterOutcome.PARTIAL, 0L, DEVTOOLS_DETAIL);
         }
         Instrumentation inst = peekInst(ctx);
         if (inst != null) {
@@ -102,6 +100,9 @@ public final class SpringAdapter implements FrameworkAdapter {
 
     @Override
     public AdapterOutcome onClassesReloaded(ClassReloadEvent event) {
+        if (refuse) {
+            return new AdapterOutcome(ID, AdapterOutcome.PARTIAL, 0L, DEVTOOLS_DETAIL);
+        }
         List<ReloadedClass> classes = event == null ? List.of() : event.classes;
         List<Object> contexts = SpringContextTracker.liveContexts();
         if (contexts.isEmpty()) {
@@ -151,14 +152,28 @@ public final class SpringAdapter implements FrameworkAdapter {
         if (event == null || event.resources == null || event.resources.isEmpty()) {
             return AdapterOutcome.ok(ID);
         }
+        boolean commerce = commercePresent(event);
+        String restart = null;
         boolean allStatic = true;
         for (ResourceChangeEvent.ChangedResource resource : event.resources) {
-            if (SpringResourcePolicy.isBootConfig(resource)) {
-                return new AdapterOutcome(ID, AdapterOutcome.RESTART_REQUIRED, 0L, CONFIG_CHANGED_DETAIL);
+            if (commerce) {
+                String hybris = HybrisResourcePolicy.restartDetail(resource);
+                if (hybris != null && restart == null) {
+                    restart = hybris;
+                }
+            }
+            if (SpringResourcePolicy.isBootConfig(resource) && restart == null) {
+                restart = CONFIG_CHANGED_DETAIL;
             }
             if (!SpringResourcePolicy.isStatic(resource)) {
                 allStatic = false;
             }
+        }
+        if (restart != null) {
+            return new AdapterOutcome(ID, AdapterOutcome.RESTART_REQUIRED, 0L, restart);
+        }
+        if (refuse) {
+            return new AdapterOutcome(ID, AdapterOutcome.PARTIAL, 0L, DEVTOOLS_DETAIL);
         }
         if (allStatic) {
             return new AdapterOutcome(ID, AdapterOutcome.SUCCESS, 0L, STATIC_DETAIL);
@@ -240,6 +255,22 @@ public final class SpringAdapter implements FrameworkAdapter {
                 if (devToolsLogged.compareAndSet(false, true)) {
                     ctx.log("error", "refusing Spring adapter; spring.devtools.restart.enabled is not false");
                 }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean commercePresent(ResourceChangeEvent event) {
+        if (event == null || event.ctx == null) {
+            return false;
+        }
+        ClassLoader[] loaders = event.ctx.applicationLoaders();
+        if (loaders == null) {
+            return false;
+        }
+        for (ClassLoader loader : loaders) {
+            if (HybrisResourcePolicy.commercePresent(loader)) {
                 return true;
             }
         }

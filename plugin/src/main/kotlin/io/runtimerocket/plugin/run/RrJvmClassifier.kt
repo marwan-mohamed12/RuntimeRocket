@@ -68,6 +68,9 @@ object RrJvmClassifier {
             lower.contains("hybris") ||
             lower.contains("hybrisserver") ||
             lower.contains("de.hybris") ||
+            (lower.contains("wrappersimpleapp")
+                && (lower.contains("de.hybris") || lower.contains("hybris") || lower.contains("hybrisserver"))) ||
+            lower.contains("tomcat") && (lower.contains("bootstrap") || lower.contains("hybris") || lower.contains("platform")) ||
             (lower.contains("bootstrap") && (lower.contains("org.apache") || lower.contains("catalina") || lower.contains("tomcat")))
     }
 

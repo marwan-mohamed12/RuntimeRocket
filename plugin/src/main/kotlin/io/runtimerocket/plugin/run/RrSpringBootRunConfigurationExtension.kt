@@ -6,7 +6,6 @@ import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.execution.configurations.RunnerSettings
 import com.intellij.execution.process.ProcessHandler
 import com.intellij.openapi.options.SettingsEditor
-import io.runtimerocket.plugin.settings.RrApplicationSettings
 import org.jdom.Element
 
 /**
@@ -44,7 +43,7 @@ class RrSpringBootRunConfigurationExtension : RunConfigurationExtension() {
     }
 
     override fun <P : RunConfigurationBase<*>> createEditor(configuration: P): SettingsEditor<P> {
-        return RrEnableSettingsEditor(defaultOn = true)
+        return RrEnableSettingsEditor(defaultOn = RrRunConfigurationExtension.defaultEnabledForNew(configuration))
     }
 
     override fun getEditorTitle(): String = "RuntimeRocket"
@@ -60,7 +59,6 @@ class RrSpringBootRunConfigurationExtension : RunConfigurationExtension() {
     }
 
     override fun extendCreatedConfiguration(configuration: RunConfigurationBase<*>, location: com.intellij.execution.Location<*>) {
-        val enable = RrApplicationSettings.getInstance().enableOnNewRunConfigurations
-        RrRunConfigState.setEnabled(configuration, enable)
+        RrRunConfigState.setEnabled(configuration, RrRunConfigurationExtension.defaultEnabledForNew(configuration))
     }
 }

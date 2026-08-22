@@ -12,7 +12,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SpringAdapterAvailabilityTest {
@@ -38,7 +37,10 @@ class SpringAdapterAvailabilityTest {
         assertTrue(
                 ctx.errors.stream().anyMatch(msg -> msg.contains("DevTools") || msg.contains("devtools")),
                 ctx.errors.toString());
-        assertFalse(adapter.isAvailable(loader));
+        assertTrue(adapter.isAvailable(loader));
+        var outcome = adapter.onClassesReloaded(null);
+        assertEquals(io.runtimerocket.protocol.AdapterOutcome.PARTIAL, outcome.status);
+        assertEquals(SpringAdapter.DEVTOOLS_DETAIL, outcome.detail);
     }
 
     private static byte[] emptyClass(String binaryName) {

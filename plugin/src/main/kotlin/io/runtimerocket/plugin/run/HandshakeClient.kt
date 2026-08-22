@@ -6,6 +6,7 @@ import java.nio.file.Path
 import java.security.MessageDigest
 import java.time.Duration
 import java.time.Instant
+import java.util.LinkedHashSet
 
 /**
  * Polls `${tmpdir}/runtimerocket/${pid}.json`, then scans `*.json` by token.
@@ -13,6 +14,7 @@ import java.time.Instant
  */
 class HandshakeClient(
     private val directory: Path = defaultDirectory(),
+    private val extraDirectories: List<Path> = emptyList(),
     private val clock: () -> Instant = { Instant.now() },
     private val sleeper: (Duration) -> Unit = { Thread.sleep(it.toMillis()) },
 ) {
@@ -39,28 +41,45 @@ class HandshakeClient(
     }
 
     fun findByPid(pid: Long): HandshakeDocument? {
-        return readDocument(directory.resolve("$pid.json"))
+        for (dir in searchDirectories()) {
+            val found = readDocument(dir.resolve("$pid.json"))
+            if (found != null) {
+                return found
+            }
+        }
+        return null
     }
 
     fun findOnce(expectedPid: Long?, expectedToken: String, startedAfter: Instant): HandshakeDocument? {
         if (expectedPid != null) {
-            val byPid = readIfMatches(directory.resolve("$expectedPid.json"), expectedToken, startedAfter)
-            if (byPid != null) {
-                return byPid
+            for (dir in searchDirectories()) {
+                val byPid = readIfMatches(dir.resolve("$expectedPid.json"), expectedToken, startedAfter)
+                if (byPid != null) {
+                    return byPid
+                }
             }
         }
-        if (!Files.isDirectory(directory)) {
-            return null
-        }
-        Files.newDirectoryStream(directory, "*.json").use { stream ->
-            for (file in stream) {
-                val doc = readIfMatches(file, expectedToken, startedAfter)
-                if (doc != null) {
-                    return doc
+        for (dir in searchDirectories()) {
+            if (!Files.isDirectory(dir)) {
+                continue
+            }
+            Files.newDirectoryStream(dir, "*.json").use { stream ->
+                for (file in stream) {
+                    val doc = readIfMatches(file, expectedToken, startedAfter)
+                    if (doc != null) {
+                        return doc
+                    }
                 }
             }
         }
         return null
+    }
+
+    private fun searchDirectories(): List<Path> {
+        val out = LinkedHashSet<Path>()
+        out.add(directory)
+        extraDirectories.forEach { out.add(it) }
+        return out.toList()
     }
 
     private fun readDocument(file: Path): HandshakeDocument? {
@@ -96,6 +115,23 @@ class HandshakeClient(
         val POLL: Duration = Duration.ofMillis(200)
 
         fun defaultDirectory(): Path = Path.of(System.getProperty("java.io.tmpdir"), "runtimerocket")
+
+        fun extraHandshakeDirectories(): List<Path> {
+            val out = LinkedHashSet<Path>()
+            for (key in listOf("TEMP", "TMP", "TMPDIR")) {
+                val raw = System.getenv(key)
+                if (!raw.isNullOrBlank()) {
+                    out.add(Path.of(raw, "runtimerocket"))
+                }
+            }
+            return out.filter { Files.isDirectory(it) }.toList()
+        }
+
+        fun forProject(project: com.intellij.openapi.project.Project): HandshakeClient {
+            return HandshakeClient(
+                extraDirectories = extraHandshakeDirectories() + RrHybrisProject.handshakeDirs(project),
+            )
+        }
 
         fun tokenEquals(expected: String, actual: String): Boolean {
             val left = expected.toByteArray(StandardCharsets.UTF_8)

@@ -30,9 +30,20 @@ object RrNotifier {
     }
 
     fun handshakeTimedOut(project: Project) {
+        val hybris = io.runtimerocket.plugin.run.RrHybrisProject.isHybris(project)
+        val text =
+            if (hybris) {
+                "RuntimeRocket did not attach within 90s. For Hybris: wait until HAC is up, then Tools | Attach RuntimeRocket. If the handshake folder is under hybris/temp, link it to %TEMP%\\runtimerocket (see the Hybris guide)."
+            } else {
+                "RuntimeRocket did not attach within 90s. Forked launchers and Gradle bootRun are a common cause. Use Attach if the process was not started from an Application run configuration."
+            }
+        notify(project, text, NotificationType.WARNING)
+    }
+
+    fun missingLaunchToken(project: Project) {
         notify(
             project,
-            "RuntimeRocket did not attach within 90s. Forked launchers and Gradle bootRun are a common cause.",
+            "RuntimeRocket is enabled on this run configuration but the launch token was not found on the process. Use Tools | Attach RuntimeRocket.",
             NotificationType.WARNING,
         )
     }

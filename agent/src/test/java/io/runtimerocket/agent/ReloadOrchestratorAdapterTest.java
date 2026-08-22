@@ -75,6 +75,54 @@ class ReloadOrchestratorAdapterTest {
     }
 
     @Test
+    void emptyJailDoesNotAbortInlineClassWhenResourceIsAlsoSent() throws Exception {
+        String name = TestClasses.uniqueBinary("WithYml");
+        byte[] before = TestClasses.bodyClass(name, 1);
+        byte[] after = TestClasses.bodyClass(name, 2);
+        Class<?> type = TestClasses.define(getClass().getClassLoader(), name, before);
+        Object instance = type.getDeclaredConstructor().newInstance();
+
+        Path yml = temp.resolve("application.yml");
+        Files.writeString(yml, "a: 1");
+
+        AdapterHost host = new AdapterHost(List.of(), null);
+        host.register(new FrameworkAdapter() {
+            @Override
+            public String id() {
+                return "spring";
+            }
+
+            @Override
+            public int order() {
+                return 1;
+            }
+
+            @Override
+            public boolean isAvailable(ClassLoader appLoader) {
+                return true;
+            }
+
+            @Override
+            public AdapterOutcome onClassesReloaded(ClassReloadEvent event) {
+                return AdapterOutcome.ok(id());
+            }
+
+            @Override
+            public AdapterOutcome onResourcesChanged(io.runtimerocket.agent.spi.ResourceChangeEvent event) {
+                return new AdapterOutcome(id(), AdapterOutcome.RESTART_REQUIRED, 0L, "config changed — restart to apply");
+            }
+        });
+
+        ReloadOrchestrator orchestrator = orchestrator(host, primedIndex(type, before), WatchDirs.of(List.of()));
+        ReloadRequest request = inline(name, after);
+        request.resources = List.of(new ResourcePayload("application.yml", yml.toString(), null));
+        ReloadResult result = orchestrator.reload(request);
+        assertEquals(ReloadResult.RESTART_REQUIRED, result.status, result.message);
+        assertEquals(ClassOutcome.REDEFINED, result.classes.get(0).status);
+        assertEquals(2, TestClasses.invokeValue(type, instance));
+    }
+
+    @Test
     void resourceAdapterFailureIsPartial() throws Exception {
         Path file = temp.resolve("application.properties");
         Files.writeString(file, "a=1");

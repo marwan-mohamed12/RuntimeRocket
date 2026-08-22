@@ -93,7 +93,7 @@ class AttachRuntimeRocketAction : AnAction(
                     }
                 }
             },
-            handshakeClient: HandshakeClient = HandshakeClient(),
+            handshakeClient: HandshakeClient = HandshakeClient.forProject(project),
             timeout: Duration = handshakeTimeout,
         ): RrLateAttach.Result {
             val parsed = RrLateAttach.parsePid(pidRaw)
