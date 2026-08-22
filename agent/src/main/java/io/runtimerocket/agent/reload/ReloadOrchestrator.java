@@ -111,11 +111,7 @@ public final class ReloadOrchestrator {
             return result(ReloadResult.FAILED, t0, List.of(), e.getMessage());
         }
 
-        try {
-            checkResources(resources);
-        } catch (PathJailException e) {
-            return result(ReloadResult.FAILED, t0, List.of(), e.getMessage());
-        }
+        List<ResourcePayload> acceptedResources = acceptResources(resources);
 
         if (ReloadRequest.TRIGGER_COMPILE.equals(request.trigger) && watcher != null) {
             for (ResolvedClass rc : resolved.items) {
@@ -123,7 +119,7 @@ public final class ReloadOrchestrator {
                     watcher.suppress(rc.path, WATCHER_SUPPRESS_MS);
                 }
             }
-            for (ResourcePayload resource : resources) {
+            for (ResourcePayload resource : acceptedResources) {
                 if (resource.path != null) {
                     watcher.suppress(Path.of(resource.path), WATCHER_SUPPRESS_MS);
                 }
@@ -144,7 +140,7 @@ public final class ReloadOrchestrator {
             }
         }
 
-        if (remaining.isEmpty() && resources.isEmpty()) {
+        if (remaining.isEmpty() && acceptedResources.isEmpty()) {
             return result(ReloadResult.SUCCESS, t0, skipped, skipped.isEmpty() ? "nothing to reload" : "duplicate");
         }
 
@@ -227,7 +223,7 @@ public final class ReloadOrchestrator {
                     item.bytes);
         }
 
-        List<AdapterOutcome> adapterOutcomes = notifyAdapters(prepared, resources);
+        List<AdapterOutcome> adapterOutcomes = notifyAdapters(prepared, acceptedResources);
         String status;
         String message;
         if (AdapterHost.restartRequired(adapterOutcomes)) {
@@ -350,7 +346,7 @@ public final class ReloadOrchestrator {
             if (path == null) {
                 throw new ResolveException("missing-bytes: " + nullToEmpty(binaryName));
             }
-            if (!watchDirs.contains(path)) {
+            if (!watchDirs.isEmpty() && !watchDirs.contains(path)) {
                 throw new PathJailException(binaryName, "path-not-watched");
             }
             try {
@@ -378,15 +374,21 @@ public final class ReloadOrchestrator {
         return new ResolvedClass(binaryName, bytes, sha, path);
     }
 
-    private void checkResources(List<ResourcePayload> resources) {
+    /** Notify-only resources: empty jail accepts all; a configured jail drops outsiders. */
+    private List<ResourcePayload> acceptResources(List<ResourcePayload> resources) {
+        if (resources == null || resources.isEmpty()) {
+            return List.of();
+        }
+        List<ResourcePayload> accepted = new ArrayList<>();
         for (ResourcePayload resource : resources) {
             if (resource.path == null || resource.path.isBlank()) {
-                throw new PathJailException(resource.classpathName, "path-not-watched");
+                continue;
             }
-            if (!watchDirs.contains(Path.of(resource.path))) {
-                throw new PathJailException(resource.classpathName, "path-not-watched");
+            if (watchDirs.isEmpty() || watchDirs.contains(Path.of(resource.path))) {
+                accepted.add(resource);
             }
         }
+        return accepted;
     }
 
     private ReloadResult failAfterDefine(long t0, List<Prepared> prepared, List<Prepared> defined, Exception e) {

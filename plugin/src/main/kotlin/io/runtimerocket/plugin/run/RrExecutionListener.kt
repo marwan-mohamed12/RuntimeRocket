@@ -16,7 +16,11 @@ class RrExecutionListener : ExecutionListener {
         if (!settings.enabledFor(configuration)) {
             return
         }
-        val sessionToken = TokenFactory.tokenFor(handler) ?: return
+        val sessionToken = TokenFactory.tokenFor(handler)
+        if (sessionToken == null) {
+            RrNotifier.missingLaunchToken(project)
+            return
+        }
         val pid = handler.rrPid()
         val startedAfter = sessionToken.createdAt.minusSeconds(2)
         val reload = RrReloadService.getInstance(project)
@@ -29,6 +33,7 @@ class RrExecutionListener : ExecutionListener {
             expectedToken = sessionToken.token,
             startedAfter = startedAfter,
             environment = env,
+            client = HandshakeClient.forProject(project),
         ).whenComplete { session, error ->
             if (error != null || session == null) {
                 RrStatus.notAttached(project)
@@ -58,10 +63,10 @@ class RrExecutionListener : ExecutionListener {
         exitCode: Int,
     ) {
         val project = env.project
-        RrReloadService.getInstance(project).invalidateSnapshot()
         RrSessionManager.getInstance(project).disconnect(handler)
         TokenFactory.forget(handler)
         if (!RrSessionManager.getInstance(project).hasActiveSession()) {
+            RrReloadService.getInstance(project).invalidateSnapshot()
             RrStatus.idle(project)
         }
     }

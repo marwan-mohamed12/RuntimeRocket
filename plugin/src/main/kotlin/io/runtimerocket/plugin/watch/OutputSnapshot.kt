@@ -118,7 +118,7 @@ class OutputSnapshot {
 
     companion object {
         val RESOURCE_EXTENSIONS =
-            setOf("properties", "xml", "yml", "yaml", "json", "html", "js", "css", "sql")
+            setOf("properties", "xml", "yml", "yaml", "json", "html", "js", "css", "sql", "impex", "jsp")
 
         fun isClassFile(path: Path): Boolean = path.fileName.toString().endsWith(".class", ignoreCase = true)
 

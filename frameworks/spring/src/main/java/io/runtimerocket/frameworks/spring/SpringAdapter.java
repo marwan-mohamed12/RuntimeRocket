@@ -29,6 +29,7 @@ public final class SpringAdapter implements FrameworkAdapter {
     public static final String STATIC_DETAIL = "static-on-disk";
     public static final String MAPPING_STALE_DETAIL = "controller mappings may be stale — restart";
     public static final String PROXY_STALE_DETAIL = "proxy stale — restart";
+    public static final String DEVTOOLS_DETAIL = "Spring DevTools restart is enabled";
 
     private final SpringHookTransformer transformer = new SpringHookTransformer();
     private final AtomicBoolean installed = new AtomicBoolean(false);
@@ -48,10 +49,7 @@ public final class SpringAdapter implements FrameworkAdapter {
 
     @Override
     public boolean isAvailable(ClassLoader appLoader) {
-        if (!SpringEnvironment.springPresent(appLoader)) {
-            return false;
-        }
-        return !refuse;
+        return SpringEnvironment.springPresent(appLoader);
     }
 
     @Override
@@ -102,6 +100,9 @@ public final class SpringAdapter implements FrameworkAdapter {
 
     @Override
     public AdapterOutcome onClassesReloaded(ClassReloadEvent event) {
+        if (refuse) {
+            return new AdapterOutcome(ID, AdapterOutcome.PARTIAL, 0L, DEVTOOLS_DETAIL);
+        }
         List<ReloadedClass> classes = event == null ? List.of() : event.classes;
         List<Object> contexts = SpringContextTracker.liveContexts();
         if (contexts.isEmpty()) {
@@ -151,8 +152,15 @@ public final class SpringAdapter implements FrameworkAdapter {
         if (event == null || event.resources == null || event.resources.isEmpty()) {
             return AdapterOutcome.ok(ID);
         }
+        if (refuse) {
+            return new AdapterOutcome(ID, AdapterOutcome.PARTIAL, 0L, DEVTOOLS_DETAIL);
+        }
         boolean allStatic = true;
         for (ResourceChangeEvent.ChangedResource resource : event.resources) {
+            String hybris = HybrisResourcePolicy.restartDetail(resource);
+            if (hybris != null) {
+                return new AdapterOutcome(ID, AdapterOutcome.RESTART_REQUIRED, 0L, hybris);
+            }
             if (SpringResourcePolicy.isBootConfig(resource)) {
                 return new AdapterOutcome(ID, AdapterOutcome.RESTART_REQUIRED, 0L, CONFIG_CHANGED_DETAIL);
             }

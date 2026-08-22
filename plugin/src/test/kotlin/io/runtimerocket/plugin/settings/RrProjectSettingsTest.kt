@@ -38,6 +38,14 @@ class RrProjectSettingsTest {
     }
 
     @Test
+    fun hybrisApplicationDefaultsOffUnlessExplicitlyEnabled() {
+        val settings = RrProjectSettings()
+        assertFalse(settings.decideEnabled(RrRunConfigSupport.APPLICATION_TYPE_ID, userEnabled = null, hybris = true))
+        assertTrue(settings.decideEnabled(RrRunConfigSupport.APPLICATION_TYPE_ID, userEnabled = true, hybris = true))
+        assertTrue(settings.decideEnabled(RrRunConfigSupport.APPLICATION_TYPE_ID, userEnabled = null, hybris = false))
+    }
+
+    @Test
     fun jbrConsentDefaultsFalse() {
         val settings = RrProjectSettings()
         assertFalse(settings.jbrConsentAccepted)

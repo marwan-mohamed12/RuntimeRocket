@@ -121,6 +121,21 @@ class HandshakeClientTest {
     }
 
     @Test
+    fun scansExtraHandshakeDirectory() {
+        val extra = temp.resolve("hybris-temp")
+        Files.createDirectories(extra)
+        val token = "hybris-token"
+        val started = Instant.parse("2026-08-15T12:00:00Z")
+        writeHandshake(extra.resolve("55.json"), pid = 55, port = 9, token = token, startedAt = started)
+        val emptyPrimary = temp.resolve("empty")
+        Files.createDirectories(emptyPrimary)
+        val client = HandshakeClient(directory = emptyPrimary, extraDirectories = listOf(extra), sleeper = { })
+        val found = client.findOnce(expectedPid = 55L, expectedToken = token, startedAfter = started.minusSeconds(1))
+        assertEquals(9, found?.port)
+        assertEquals(55L, found?.pid)
+    }
+
+    @Test
     fun handshakeTimeoutIsNinetySeconds() {
         assertEquals(90, HandshakeClient.TIMEOUT.seconds)
     }

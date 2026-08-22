@@ -1,6 +1,7 @@
 package io.runtimerocket.plugin.run
 
 import io.runtimerocket.plugin.watch.RrReloadService
+import io.runtimerocket.protocol.ReloadRequest
 import io.runtimerocket.protocol.ReloadResult
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -20,6 +21,7 @@ class RrProcessRestartTest {
         assertTrue(RrReloadService.shouldAdvanceSnapshot(ReloadResult.PARTIAL))
         assertTrue(RrReloadService.shouldAdvanceSnapshot(ReloadResult.RESTART_REQUIRED))
         assertFalse(RrReloadService.shouldAdvanceSnapshot(ReloadResult.FAILED))
+        assertTrue(RrReloadService.shouldAdvanceSnapshot(ReloadResult.FAILED, ReloadRequest.TRIGGER_WATCH))
         assertFalse(RrReloadService.shouldAdvanceSnapshot(null))
     }
 }

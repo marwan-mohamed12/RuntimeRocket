@@ -92,17 +92,27 @@ class RrProjectSettings : PersistentStateComponent<RrProjectSettings.State> {
     fun enabledFor(configuration: RunProfile): Boolean {
         val typeId = RrRunConfigSupport.typeId(configuration)
         val userEnabled = (configuration as? RunConfigurationBase<*>)?.getUserData(RrRunConfigState.ENABLED_KEY)
-        return decideEnabled(typeId, userEnabled)
+        val hybris =
+            (configuration as? RunConfigurationBase<*>)?.project?.let { io.runtimerocket.plugin.run.RrHybrisProject.isHybris(it) } ==
+                true
+        return decideEnabled(typeId, userEnabled, hybris)
     }
 
-    fun decideEnabled(typeId: String?, userEnabled: Boolean?): Boolean {
+    fun decideEnabled(typeId: String?, userEnabled: Boolean?, hybris: Boolean = false): Boolean {
         if (!state.enabled) {
             return false
         }
         if (!RrRunConfigSupport.isPatchableType(typeId, state.includeTests)) {
             return false
         }
-        val defaultOn = RrRunConfigSupport.defaultEnabled(typeId, state.includeTests)
+        val defaultOn =
+            if (hybris &&
+                (typeId == RrRunConfigSupport.APPLICATION_TYPE_ID || typeId == RrRunConfigSupport.JAR_APPLICATION_TYPE_ID)
+            ) {
+                false
+            } else {
+                RrRunConfigSupport.defaultEnabled(typeId, state.includeTests)
+            }
         return userEnabled ?: defaultOn
     }
 

@@ -31,6 +31,9 @@ object TokenFactory {
 
     private val byLaunchId = ConcurrentHashMap<String, SessionToken>()
 
+    @Volatile
+    private var lastLaunch: SessionToken? = null
+
     fun generate(): String {
         val raw = ByteArray(TOKEN_BYTES)
         SecureRandom().nextBytes(raw)
@@ -44,6 +47,7 @@ object TokenFactory {
         val file = writeTokenFile(token, directory)
         val session = SessionToken(UUID.randomUUID().toString(), token, file, Instant.now())
         byLaunchId[session.launchId] = session
+        lastLaunch = session
         return session
     }
 
@@ -82,8 +86,16 @@ object TokenFactory {
 
     fun tokenFor(handler: ProcessHandler): SessionToken? {
         bindFromProcess(handler)
-        val launchId = handler.getUserData(LAUNCH_KEY) ?: return null
-        return byLaunchId[launchId]
+        val launchId = handler.getUserData(LAUNCH_KEY)
+        if (launchId != null) {
+            byLaunchId[launchId]?.let { return it }
+        }
+        val recent = lastLaunch
+        if (recent != null && java.time.Duration.between(recent.createdAt, Instant.now()).seconds < 120) {
+            bind(handler, recent.launchId)
+            return recent
+        }
+        return null
     }
 
     fun forget(handler: ProcessHandler) {
@@ -96,6 +108,9 @@ object TokenFactory {
 
     fun forget(launchId: String) {
         val removed = byLaunchId.remove(launchId)
+        if (lastLaunch?.launchId == launchId) {
+            lastLaunch = null
+        }
         if (removed != null) {
             try {
                 Files.deleteIfExists(removed.file)

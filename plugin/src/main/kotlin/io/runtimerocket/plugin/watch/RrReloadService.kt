@@ -440,7 +440,7 @@ class RrReloadService(private val project: Project) {
             }
         val result = merge(results)
         val latencyMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt)
-        if (shouldAdvanceSnapshot(result.status)) {
+        if (shouldAdvanceSnapshot(result.status, request.trigger)) {
             snapshot.commit(peek.fingerprints)
             if (applied(result.status)) {
                 history().clearGutter(peek.diff.classes.map { it.binaryName })
@@ -617,10 +617,13 @@ class RrReloadService(private val project: Project) {
          * watch pass cannot hot-reload them. Leaving the snapshot uncommitted
          * makes the 1.5s output poll resend the same payload forever.
          */
-        fun shouldAdvanceSnapshot(status: String?): Boolean {
-            return status == ReloadResult.SUCCESS ||
-                status == ReloadResult.PARTIAL ||
-                status == ReloadResult.RESTART_REQUIRED
+        fun shouldAdvanceSnapshot(status: String?, trigger: String? = null): Boolean {
+            return when (status) {
+                ReloadResult.SUCCESS, ReloadResult.PARTIAL, ReloadResult.RESTART_REQUIRED -> true
+                ReloadResult.FAILED ->
+                    trigger == ReloadRequest.TRIGGER_WATCH || trigger == ReloadRequest.TRIGGER_COMPILE
+                else -> false
+            }
         }
     }
 }

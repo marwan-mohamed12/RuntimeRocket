@@ -1,8 +1,10 @@
 # SAP Commerce (Hybris)
 
-RuntimeRocket **0.1.0 is not a Hybris plugin.** `hybrisserver` is never
-patched by the run-configuration checkbox. On a certified Commerce JDK
-(Temurin / SapMachine) you get **method-body only** (`RR ● standard`).
+RuntimeRocket detects an SAP Commerce workspace (`config/localextensions.xml`,
+`hybris/bin/platform`, `extensioninfo.xml`). **`hybrisserver` is still not
+patched** by the Application checkbox — Attach after the server is up.
+On a certified Commerce JDK (Temurin / SapMachine) you get **method-body
+only** (`RR ● standard`).
 
 Keep that JDK. Do **not** switch `hybrisserver` to JetBrains Runtime.
 
@@ -17,8 +19,8 @@ Generic attach / handshake notes:
 | --- | --- |
 | Body of an existing method in custom Java | Reload if IntelliJ compiled it |
 | New method, field, constructor, signature | `RR ✕ restart` |
-| `items.xml`, `*Model`, type system | HAC Update / `ant updatesystem` + restart |
-| `*spring.xml`, ImpEx, `local.properties`, JSP, widgets | Restart |
+| `items.xml`, `*Model`, type system | `RR ✕ restart` — HAC Update / `ant updatesystem` + restart |
+| `*-spring.xml`, ImpEx, `local.properties`, JSP, widgets | `RR ✕ restart` — not hot-reloaded |
 
 There is no Commerce adapter. Spring mapping refresh targets Boot 3.5 /
 Framework 6.2+, not typical Commerce Spring 5.3.
@@ -30,8 +32,9 @@ Framework 6.2+, not typical Commerce Spring 5.3.
 **Settings | Tools | RuntimeRocket** — enabled. Reload on successful
 compile on. Include test output off.
 
-Do **not** enable RuntimeRocket on an Application run configuration and
-expect `hybrisserver` to pick it up.
+On a detected Commerce project, Application run configurations default
+**off**. Do **not** enable the checkbox and expect `hybrisserver` to pick
+it up — Attach after the server is up.
 
 ### 2. Leave module compile output as Hybris set it
 
