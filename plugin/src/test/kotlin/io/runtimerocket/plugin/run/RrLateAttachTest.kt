@@ -126,6 +126,7 @@ class RrLateAttachTest {
         assertEquals(agent.toAbsolutePath().toString(), loadedJar)
         assertEquals(RrLateAttach.agentArgs(token, "debug"), loadedArgs)
         assertTrue(loadedArgs!!.contains("tokenFile="))
+        assertTrue(loadedArgs!!.contains("watch=false"), loadedArgs)
         assertFalse(RrVmArguments.rawTokenOnCommandLine("-javaagent:x=$loadedArgs"), loadedArgs)
     }
 

@@ -12,7 +12,7 @@ object RrVmArguments {
         val jar = agentJar.toAbsolutePath().toString()
         val token = tokenFile.toAbsolutePath().toString()
         // One ParametersList item. IntelliJ quotes the whole argv; do not embed quotes in paths.
-        return "-javaagent:$jar=tokenFile=$token,log=$logLevel"
+        return "-javaagent:$jar=tokenFile=$token,log=$logLevel,watch=false"
     }
 
     fun build(agentJar: Path, tokenFile: Path, logLevel: String, enhanced: Boolean): List<String> {

@@ -183,8 +183,9 @@ class AttachRuntimeRocketAction : AnAction(
         ): RrLateAttach.Result {
             val session = RrSession(token, handshake, processHandler = null)
             return try {
+                val reload = RrReloadService.getInstance(project)
+                reload.baseline()
                 RrSessionManager.getInstance(project).connect(session)
-                RrReloadService.getInstance(project).baseline()
                 RrLateAttach.Result(ok = true, pid = pid, handshake = handshake, token = token)
             } catch (e: Exception) {
                 RrLateAttach.Result(

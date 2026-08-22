@@ -1,9 +1,11 @@
 package io.runtimerocket.plugin.run
 
+import com.intellij.execution.ExecutionManager
 import com.intellij.execution.process.ProcessHandler
 import com.intellij.execution.runners.ExecutionEnvironment
 import com.intellij.execution.runners.ExecutionUtil
 import com.intellij.openapi.application.ApplicationManager
+import io.runtimerocket.plugin.watch.RrReloadService
 import io.runtimerocket.protocol.ReloadRequest
 import io.runtimerocket.protocol.ReloadResult
 import java.time.Instant
@@ -65,11 +67,32 @@ class RrSession(
 
     fun restart(): Boolean {
         val env = environment ?: return false
+        try {
+            RrReloadService.getInstance(env.project).invalidateSnapshot()
+        } catch (_: Exception) {
+            // tests construct sessions without a project service
+        }
         val app = ApplicationManager.getApplication()
+        val task = {
+            val settings = env.runnerAndConfigurationSettings
+            if (RrProcessRestart.strategy(settings != null) == RrProcessRestart.Strategy.FRESH_ENVIRONMENT &&
+                settings != null
+            ) {
+                ExecutionManager.getInstance(env.project).restartRunProfile(
+                    env.project,
+                    env.executor,
+                    env.executionTarget,
+                    settings,
+                    processHandler,
+                )
+            } else {
+                ExecutionUtil.restart(env)
+            }
+        }
         if (app.isDispatchThread) {
-            ExecutionUtil.restart(env)
+            task()
         } else {
-            app.invokeLater { ExecutionUtil.restart(env) }
+            app.invokeLater(task)
         }
         return true
     }

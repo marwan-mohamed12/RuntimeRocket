@@ -37,6 +37,11 @@ class OutputSnapshot {
         files.putAll(scan(roots))
     }
 
+    /** Drop remembered fingerprints. Next peek treats every file as new until [baseline] or [commit]. */
+    fun invalidate() {
+        files.clear()
+    }
+
     fun currentFingerprints(): Map<Path, Fingerprint> = files.toMap()
 
     data class Peek(

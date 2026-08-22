@@ -19,6 +19,8 @@ class RrExecutionListener : ExecutionListener {
         val sessionToken = TokenFactory.tokenFor(handler) ?: return
         val pid = handler.rrPid()
         val startedAfter = sessionToken.createdAt.minusSeconds(2)
+        val reload = RrReloadService.getInstance(project)
+        reload.invalidateSnapshot()
         RrStatus.waitingForAgent(project)
         val manager = RrSessionManager.getInstance(project)
         manager.awaitHandshake(
@@ -34,8 +36,10 @@ class RrExecutionListener : ExecutionListener {
                 return@whenComplete
             }
             try {
+                // Baseline before connect so the output watch cannot treat the
+                // freshly compiled classpath as a pending reload against this JVM.
+                reload.baseline()
                 manager.connect(session)
-                RrReloadService.getInstance(project).baseline()
                 RrStatus.attached(project, session.backend)
                 RrNotifier.attached(project, session.backend)
             } catch (e: Exception) {
@@ -54,6 +58,7 @@ class RrExecutionListener : ExecutionListener {
         exitCode: Int,
     ) {
         val project = env.project
+        RrReloadService.getInstance(project).invalidateSnapshot()
         RrSessionManager.getInstance(project).disconnect(handler)
         TokenFactory.forget(handler)
         if (!RrSessionManager.getInstance(project).hasActiveSession()) {

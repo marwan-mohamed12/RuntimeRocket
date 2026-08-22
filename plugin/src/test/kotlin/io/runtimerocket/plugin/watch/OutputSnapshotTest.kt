@@ -99,6 +99,27 @@ class OutputSnapshotTest {
     }
 
     @Test
+    fun invalidateDropsFingerprintsSoNextPeekIsEmptyUntilBaseline() {
+        val classes = temp.resolve("reset")
+        Files.createDirectories(classes)
+        val classFile = classes.resolve("Reset.class")
+        Files.write(classFile, byteArrayOf(1, 2, 3))
+        val snapshot = OutputSnapshot()
+        val roots = listOf(OutputRoot(classes))
+        snapshot.baseline(roots)
+        Files.write(classFile, byteArrayOf(4, 5, 6))
+        assertFalse(snapshot.peek(roots).diff.isEmpty())
+
+        snapshot.invalidate()
+        assertTrue(snapshot.currentFingerprints().isEmpty())
+        val afterInvalidate = snapshot.peek(roots)
+        assertEquals(1, afterInvalidate.diff.classes.size)
+
+        snapshot.baseline(roots)
+        assertTrue(snapshot.peek(roots).diff.isEmpty())
+    }
+
+    @Test
     fun oversizedInlineSwitchesToByReference() {
         val classes = temp.resolve("big")
         Files.createDirectories(classes)
