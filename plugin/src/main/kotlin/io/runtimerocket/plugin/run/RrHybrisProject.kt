@@ -35,7 +35,10 @@ object RrHybrisProject {
 
     fun handshakeDirs(project: Project): List<Path> {
         val base = project.basePath ?: return emptyList()
-        val root = Path.of(base)
+        return handshakeDirs(Path.of(base))
+    }
+
+    fun handshakeDirs(root: Path): List<Path> {
         return HANDSHAKE_RELATIVE.map { root.resolve(it) }.filter { Files.isDirectory(it) }
     }
 }

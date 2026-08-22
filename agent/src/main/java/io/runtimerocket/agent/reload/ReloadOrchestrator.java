@@ -346,7 +346,7 @@ public final class ReloadOrchestrator {
             if (path == null) {
                 throw new ResolveException("missing-bytes: " + nullToEmpty(binaryName));
             }
-            if (!watchDirs.isEmpty() && !watchDirs.contains(path)) {
+            if (!watchDirs.contains(path)) {
                 throw new PathJailException(binaryName, "path-not-watched");
             }
             try {

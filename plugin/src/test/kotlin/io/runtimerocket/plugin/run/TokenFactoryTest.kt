@@ -44,13 +44,10 @@ class TokenFactoryTest {
     }
 
     @Test
-    fun tokenForFallsBackToRecentLaunchWhenHandlerHasNoLaunchId() {
-        val launch = TokenFactory.newLaunch(temp)
+    fun tokenForDoesNotGuessWhenHandlerHasNoLaunchId() {
+        TokenFactory.newLaunch(temp)
         val handler = NopProcessHandler()
-        assertEquals(launch.token, TokenFactory.tokenFor(handler)?.token)
-        TokenFactory.forget(launch.launchId)
-        val later = NopProcessHandler()
-        assertNull(TokenFactory.tokenFor(later))
+        assertNull(TokenFactory.tokenFor(handler))
     }
 
     @Test

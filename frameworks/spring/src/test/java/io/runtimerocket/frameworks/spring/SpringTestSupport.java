@@ -106,21 +106,27 @@ final class SpringTestSupport {
     }
 
     static AdapterContext context(boolean late) {
-        return new InstContext(late, instrumentation());
+        return context(late, SpringTestSupport.class.getClassLoader());
+    }
+
+    static AdapterContext context(boolean late, ClassLoader loader) {
+        return new InstContext(late, instrumentation(), loader);
     }
 
     static final class InstContext implements AdapterContext {
         private final boolean late;
         private final Instrumentation inst;
+        private final ClassLoader loader;
 
-        InstContext(boolean late, Instrumentation inst) {
+        InstContext(boolean late, Instrumentation inst, ClassLoader loader) {
             this.late = late;
             this.inst = inst;
+            this.loader = loader;
         }
 
         @Override
         public ClassLoader[] applicationLoaders() {
-            return new ClassLoader[] {SpringTestSupport.class.getClassLoader()};
+            return new ClassLoader[] {loader};
         }
 
         @Override

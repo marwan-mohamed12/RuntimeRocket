@@ -618,12 +618,9 @@ class RrReloadService(private val project: Project) {
          * makes the 1.5s output poll resend the same payload forever.
          */
         fun shouldAdvanceSnapshot(status: String?, trigger: String? = null): Boolean {
-            return when (status) {
-                ReloadResult.SUCCESS, ReloadResult.PARTIAL, ReloadResult.RESTART_REQUIRED -> true
-                ReloadResult.FAILED ->
-                    trigger == ReloadRequest.TRIGGER_WATCH || trigger == ReloadRequest.TRIGGER_COMPILE
-                else -> false
-            }
+            return status == ReloadResult.SUCCESS ||
+                status == ReloadResult.PARTIAL ||
+                status == ReloadResult.RESTART_REQUIRED
         }
     }
 }

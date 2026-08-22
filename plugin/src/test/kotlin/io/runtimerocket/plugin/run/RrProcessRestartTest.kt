@@ -21,7 +21,7 @@ class RrProcessRestartTest {
         assertTrue(RrReloadService.shouldAdvanceSnapshot(ReloadResult.PARTIAL))
         assertTrue(RrReloadService.shouldAdvanceSnapshot(ReloadResult.RESTART_REQUIRED))
         assertFalse(RrReloadService.shouldAdvanceSnapshot(ReloadResult.FAILED))
-        assertTrue(RrReloadService.shouldAdvanceSnapshot(ReloadResult.FAILED, ReloadRequest.TRIGGER_WATCH))
+        assertFalse(RrReloadService.shouldAdvanceSnapshot(ReloadResult.FAILED, ReloadRequest.TRIGGER_WATCH))
         assertFalse(RrReloadService.shouldAdvanceSnapshot(null))
     }
 }

@@ -29,7 +29,7 @@ class RrHybrisProjectTest {
     fun handshakeDirIsListedWhenPresent() {
         val handshake = temp.resolve("hybris").resolve("temp").resolve("hybris").resolve("runtimerocket")
         Files.createDirectories(handshake)
-        // Project-based lookup needs an IntelliJ Project; the relative layout is what we scan.
-        assertTrue(Files.isDirectory(handshake))
+        val found = RrHybrisProject.handshakeDirs(temp)
+        assertTrue(found.any { it == handshake.toAbsolutePath().normalize() || it.normalize() == handshake.normalize() }, found.toString())
     }
 }

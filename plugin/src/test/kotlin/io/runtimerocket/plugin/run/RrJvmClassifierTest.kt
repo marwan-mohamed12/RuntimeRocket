@@ -21,6 +21,10 @@ class RrJvmClassifierTest {
             RrJvmClassifier.Kind.HYBRIS,
             RrJvmClassifier.classify("org.tanukisoftware.wrapper.WrapperSimpleApp de.hybris.bootstrap.loader.Loader"),
         )
+        assertEquals(
+            RrJvmClassifier.Kind.OTHER,
+            RrJvmClassifier.classify("org.tanukisoftware.wrapper.WrapperSimpleApp com.example.Service"),
+        )
     }
 
     @Test

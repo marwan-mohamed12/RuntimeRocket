@@ -43,7 +43,7 @@ class RrRunConfigurationExtension : RunConfigurationExtension() {
     }
 
     override fun <P : RunConfigurationBase<*>> createEditor(configuration: P): SettingsEditor<P> {
-        return RrEnableSettingsEditor(defaultOn = true)
+        return RrEnableSettingsEditor(defaultOn = defaultEnabledForNew(configuration))
     }
 
     override fun getEditorTitle(): String = "RuntimeRocket"
@@ -59,7 +59,15 @@ class RrRunConfigurationExtension : RunConfigurationExtension() {
     }
 
     override fun extendCreatedConfiguration(configuration: RunConfigurationBase<*>, location: com.intellij.execution.Location<*>) {
-        val enable = RrApplicationSettings.getInstance().enableOnNewRunConfigurations
-        RrRunConfigState.setEnabled(configuration, enable)
+        RrRunConfigState.setEnabled(configuration, defaultEnabledForNew(configuration))
+    }
+
+    companion object {
+        fun defaultEnabledForNew(configuration: RunConfigurationBase<*>): Boolean {
+            if (RrHybrisProject.isHybris(configuration.project)) {
+                return false
+            }
+            return RrApplicationSettings.getInstance().enableOnNewRunConfigurations
+        }
     }
 }
