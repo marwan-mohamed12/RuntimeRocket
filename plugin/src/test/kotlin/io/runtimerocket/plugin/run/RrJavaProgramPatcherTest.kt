@@ -27,6 +27,7 @@ class RrJavaProgramPatcherTest {
         assertFalse(agentArg.startsWith("-javaagent:\""), agentArg)
         assertFalse('"' in agentArg, agentArg)
         assertTrue(agentArg.contains("tokenFile="), agentArg)
+        assertTrue(agentArg.contains("watch=false"), agentArg)
         assertFalse(RrVmArguments.rawTokenOnCommandLine(agentArg), agentArg)
         assertFalse(args.any { it.startsWith("-Drr.token=") }, args.toString())
         assertTrue(args.contains(RrVmArguments.ADD_OPENS_LANG), args.toString())

@@ -43,6 +43,8 @@ class RrVmArgumentsTest {
         assertTrue(keys.contains("tokenFile"), keys.toString())
         assertFalse(keys.contains("token"), keys.toString())
         assertTrue(keys.contains("log"), keys.toString())
+        assertTrue(keys.contains("watch"), keys.toString())
+        assertTrue(options.contains("watch=false"), options)
     }
 
     @Test

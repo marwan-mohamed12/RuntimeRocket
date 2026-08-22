@@ -34,7 +34,7 @@ object RrLateAttach {
     }
 
     fun agentArgs(tokenFile: Path, logLevel: String): String {
-        return "tokenFile=${tokenFile.toAbsolutePath()},log=$logLevel"
+        return "tokenFile=${tokenFile.toAbsolutePath()},log=$logLevel,watch=false"
     }
 
     fun formatVmChoice(descriptor: VirtualMachineDescriptor): String {

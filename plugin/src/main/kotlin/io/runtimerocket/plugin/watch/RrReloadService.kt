@@ -60,6 +60,18 @@ class RrReloadService(private val project: Project) {
         noteMissing(located)
     }
 
+    /**
+     * Forget compiler-output fingerprints. Call this when the attached JVM dies or a
+     * restart begins; otherwise the next attach sees every `.class` as new and the
+     * output watch resends the whole classpath in a loop.
+     */
+    fun invalidateSnapshot() {
+        snapshot.invalidate()
+        snapshotted.set(false)
+        pending.set(false)
+        pendingTrigger.set(null)
+    }
+
     fun onCompileFinished(aborted: Boolean, errors: Int, context: CompileContext) {
         val failed = aborted || errors > 0
         compileCycle.onCompileFinished(failed)
@@ -428,9 +440,11 @@ class RrReloadService(private val project: Project) {
             }
         val result = merge(results)
         val latencyMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt)
-        if (applied(result.status)) {
+        if (shouldAdvanceSnapshot(result.status)) {
             snapshot.commit(peek.fingerprints)
-            history().clearGutter(peek.diff.classes.map { it.binaryName })
+            if (applied(result.status)) {
+                history().clearGutter(peek.diff.classes.map { it.binaryName })
+            }
         }
         record(result, request, latencyMs)
         render(result, latencyMs, request.classes?.size ?: peek.diff.classes.size)
@@ -596,6 +610,17 @@ class RrReloadService(private val project: Project) {
             result.status = ReloadResult.FAILED
             result.message = message
             return result
+        }
+
+        /**
+         * [ReloadResult.RESTART_REQUIRED] is terminal for these bytes: another
+         * watch pass cannot hot-reload them. Leaving the snapshot uncommitted
+         * makes the 1.5s output poll resend the same payload forever.
+         */
+        fun shouldAdvanceSnapshot(status: String?): Boolean {
+            return status == ReloadResult.SUCCESS ||
+                status == ReloadResult.PARTIAL ||
+                status == ReloadResult.RESTART_REQUIRED
         }
     }
 }
