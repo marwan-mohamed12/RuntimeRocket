@@ -53,6 +53,10 @@ object RrNotifier {
         )
     }
 
+    fun detached(project: Project, message: String) {
+        notify(project, message, NotificationType.INFORMATION)
+    }
+
     fun hotSwapSetNeverPrompt(project: Project) {
         notify(
             project,

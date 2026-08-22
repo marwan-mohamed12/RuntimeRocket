@@ -62,6 +62,16 @@ class RrLateSessionsTest {
     }
 
     @Test
+    fun disconnectRemovesAndClosesTheSession() {
+        val late = RrLateSessions { true }
+        val session = session(42)
+        late.put(session)
+        assertEquals(session, late.disconnect(42))
+        assertTrue(session.closed)
+        assertTrue(late.snapshot().isEmpty())
+    }
+
+    @Test
     fun lateAttachSessionCannotRestartRunConfig() {
         val late = session(99)
         assertEquals(false, late.canRestart())

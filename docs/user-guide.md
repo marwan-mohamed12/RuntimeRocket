@@ -72,10 +72,12 @@ balloon. First attach shows `RuntimeRocket attached (enhanced HotSwap)` (or
 
 **View | Tool Windows | RuntimeRocket** (bottom). The header shows a colored
 status chip (green enhanced, blue standard, amber partial, red restart/fail)
-plus pid, backend, and agent version. The console is split: last result on
-top, recent events below, using the editor console font. Status, times, and
-class outcomes are color-coded. Toolbar buttons have distinct icons and
-labels: **Reload Now** (lightning), **Attach** (plug), **Restart** (loop).
+plus pid, backend, and agent version. The console uses two tabs — **Reload
+steps** (current reload + last result) and **Recent events** — with the
+editor console font. Status, times, and class outcomes are color-coded.
+Toolbar buttons have distinct icons and labels: **Reload Now** (lightning),
+**Attach** (plug), **Detach** (unplug; leaves the JVM running), **Restart**
+(loop).
 
 The footer states the debugger-HotSwap policy: `session veto on` (stock
 HotSwap is cancelled only for the RR-attached process) or `set IDE HotSwap
@@ -90,6 +92,8 @@ The plugin does **not** write that IDE setting itself.
   `FAILED`, with **Restart** and **Dismiss**.
 - **Tools | RuntimeRocket: Reload Now** pushes the last compile output
   (no default shortcut — bind it under **Settings | Keymap**).
+- **Tools | Detach RuntimeRocket** (or the tool-window **Detach** button)
+  disconnects the session and leaves the JVM running.
 
 ### Never silent no-op
 

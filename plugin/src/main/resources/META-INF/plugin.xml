@@ -58,6 +58,13 @@
             icon="/icons/rrAttach.svg">
       <add-to-group group-id="ToolsMenu" anchor="last"/>
     </action>
+    <action id="rr.detach"
+            class="io.runtimerocket.plugin.ui.DetachRuntimeRocketAction"
+            text="Detach RuntimeRocket"
+            description="Disconnect RuntimeRocket from the running JVM without stopping it"
+            icon="/icons/rrDetach.svg">
+      <add-to-group group-id="ToolsMenu" anchor="last"/>
+    </action>
     <action id="rr.useBundledJbr"
             class="io.runtimerocket.plugin.run.UseBundledJbrAction"
             text="Use bundled JetBrains Runtime for this configuration"

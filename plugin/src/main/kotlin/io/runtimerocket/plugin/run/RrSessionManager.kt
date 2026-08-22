@@ -76,6 +76,23 @@ class RrSessionManager(private val project: Project) {
         }
     }
 
+    fun disconnectSession(session: RrSession) {
+        val handler = session.processHandler
+        if (handler != null && sessions.containsKey(handler)) {
+            disconnect(handler)
+            return
+        }
+        disconnectPid(session.pid)
+    }
+
+    fun disconnectAll(): Int {
+        val current = activeSessions().toList()
+        for (session in current) {
+            disconnectSession(session)
+        }
+        return current.size
+    }
+
     fun session(handler: ProcessHandler): RrSession? = sessions[handler]
 
     fun sessionByPid(pid: Long): RrSession? = activeSessions().firstOrNull { it.pid == pid }

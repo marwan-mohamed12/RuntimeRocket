@@ -8,5 +8,6 @@ object RrIcons {
     val Gutter: Icon = IconLoader.getIcon("/icons/rrGutter.svg", RrIcons::class.java)
     val Reload: Icon = IconLoader.getIcon("/icons/rrReload.svg", RrIcons::class.java)
     val Attach: Icon = IconLoader.getIcon("/icons/rrAttach.svg", RrIcons::class.java)
+    val Detach: Icon = IconLoader.getIcon("/icons/rrDetach.svg", RrIcons::class.java)
     val Restart: Icon = IconLoader.getIcon("/icons/rrRestart.svg", RrIcons::class.java)
 }

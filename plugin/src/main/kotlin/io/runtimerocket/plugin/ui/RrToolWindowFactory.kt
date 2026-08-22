@@ -15,9 +15,9 @@ import com.intellij.openapi.ui.SimpleToolWindowPanel
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.ui.JBColor
-import com.intellij.ui.OnePixelSplitter
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
+import com.intellij.ui.components.JBTabbedPane
 import com.intellij.ui.content.ContentFactory
 import com.intellij.util.ui.JBFont
 import com.intellij.util.ui.JBUI
@@ -34,8 +34,10 @@ import java.awt.RenderingHints
 import javax.swing.Box
 import javax.swing.BoxLayout
 import javax.swing.JPanel
+import javax.swing.JScrollPane
 import javax.swing.JTextPane
 import javax.swing.ScrollPaneConstants
+import javax.swing.SwingUtilities
 import javax.swing.text.StyleConstants
 import javax.swing.text.StyledDocument
 
@@ -61,6 +63,8 @@ class RrToolWindowPanel(private val project: Project) : SimpleToolWindowPanel(tr
         actions.add(LabeledToolAction(ReloadNowAction()))
         actions.add(Separator())
         actions.add(LabeledToolAction(AttachRuntimeRocketAction()))
+        actions.add(Separator())
+        actions.add(LabeledToolAction(DetachRuntimeRocketAction()))
         actions.add(Separator())
         actions.add(LabeledToolAction(RestartRunConfigAction(project)))
         val toolbar = ActionManager.getInstance().createActionToolbar(ActionPlaces.TOOLWINDOW_TOOLBAR_BAR, actions, true)
@@ -108,11 +112,9 @@ class RrToolWindowPanel(private val project: Project) : SimpleToolWindowPanel(tr
         eventsScroll.verticalScrollBarPolicy = ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED
         events.border = JBUI.Borders.empty(8, 12, 8, 12)
 
-        val splitter = OnePixelSplitter(true, 0.42f)
-        splitter.dividerWidth = JBUI.scale(1)
-        splitter.setHonorComponentsMinimumSize(false)
-        splitter.firstComponent = lastScroll
-        splitter.secondComponent = eventsScroll
+        val tabs = JBTabbedPane()
+        tabs.addTab("Reload steps", lastScroll)
+        tabs.addTab("Recent events", eventsScroll)
 
         val footer = JPanel(BorderLayout())
         footer.isOpaque = false
@@ -130,7 +132,7 @@ class RrToolWindowPanel(private val project: Project) : SimpleToolWindowPanel(tr
         val middle = JPanel(BorderLayout())
         middle.isOpaque = false
         middle.border = JBUI.Borders.customLine(JBColor.border(), 1, 0, 0, 0)
-        middle.add(splitter, BorderLayout.CENTER)
+        middle.add(tabs, BorderLayout.CENTER)
         body.add(middle, BorderLayout.CENTER)
         body.add(footer, BorderLayout.SOUTH)
 
@@ -177,6 +179,8 @@ class RrToolWindowPanel(private val project: Project) : SimpleToolWindowPanel(tr
             background = RrUiColors.consoleBg
             foreground = RrUiColors.text
             font = consoleFont()
+            caret.isVisible = false
+            caret.isSelectionVisible = true
         }
     }
 
@@ -195,13 +199,34 @@ class RrToolWindowPanel(private val project: Project) : SimpleToolWindowPanel(tr
             segments: List<RrConsoleFormatter.Segment>,
             font: Font = consoleFont(),
         ) {
+            val next = segments.joinToString("") { it.text }
+            val scroll = SwingUtilities.getAncestorOfClass(JScrollPane::class.java, pane) as? JScrollPane
+            val bar = scroll?.verticalScrollBar
+            val decision =
+                RrConsoleViewport.decide(
+                    currentText = pane.text,
+                    nextText = next,
+                    scrollValue = bar?.value ?: 0,
+                    visibleAmount = bar?.visibleAmount ?: 0,
+                    maximum = bar?.maximum ?: 0,
+                )
+            if (decision.skip) {
+                return
+            }
             pane.font = font
             val doc = pane.styledDocument
             doc.remove(0, doc.length)
             for (segment in segments) {
                 insert(doc, pane, segment, font)
             }
-            pane.caretPosition = 0
+            if (decision.followEnd) {
+                pane.caretPosition = pane.document.length
+            } else {
+                val restore = decision.restoreValue ?: 0
+                SwingUtilities.invokeLater {
+                    bar?.value = restore
+                }
+            }
         }
 
         private fun insert(
@@ -267,7 +292,7 @@ private class StatusDot : JPanel() {
     }
 }
 
-/** Toolbar action that paints its own icon and label so Reload / Attach / Restart stay distinct. */
+/** Toolbar action that paints its own icon and label so Reload / Attach / Detach / Restart stay distinct. */
 private class LabeledToolAction(
     private val delegate: AnAction,
 ) : AnAction(
